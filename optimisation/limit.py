@@ -287,9 +287,7 @@ def optimiseBoundary(bkg, sig, pres=(100,150), sr=(120,130), low=0.05, high=1.0,
 
   """Parallel approach"""
   from concurrent import futures
-  import time
   import os
-  t = time.time()
   with futures.ProcessPoolExecutor() as executor:
     iterables = [[bkg]*n, [sig]*n, [pres]*n, [sr]*n, boundaries_grid]
     func = parallel
@@ -315,8 +313,8 @@ def optimiseBoundary(bkg, sig, pres=(100,150), sr=(120,130), low=0.05, high=1.0,
   amss = np.array(amss)
   optimal_boundaries = valid_boundaries[limits.argmin()]
   optimal_limit = limits.min()
-  # optimal_boundaries = valid_boundaries[amss.argmax()]
-  # optimal_limit = amss.max()
+  #optimal_boundaries = valid_boundaries[amss.argmax()]
+  #optimal_limit = amss.max()
   
   return optimal_limit, optimal_boundaries, valid_boundaries, limits, amss
 
