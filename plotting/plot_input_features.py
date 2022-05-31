@@ -33,10 +33,17 @@ def createDefaultConfig(data, bkg, sig):
     d = data[column][data[column]!=common.dummy_val]
     b = bkg[column][bkg[column]!=common.dummy_val]
     s = sig[column][sig[column]!=common.dummy_val]
+    #d = data[column]
+    #b = bkg[column]
+    #s = sig[column]
 
     low = min([d.quantile(0.05), b.quantile(0.05), s.quantile(0.05)])
+    #low = min([min(d), min(b), min(s)])
+    #low = min([9, low])
     high = max([d.quantile(0.95), b.quantile(0.95), s.quantile(0.95)])
     config[column] = {"range": [float(low),float(high)]}
+
+    print(column, low, high)
   return config
 
 def writeDefaultConfig(data, bkg, sig):

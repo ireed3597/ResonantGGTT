@@ -43,7 +43,7 @@ class Model:
 
 
 class BDT(Model):
-  def initModel(self, hyperparams):
+  def initModel(self, hyperparams=None):
     if hyperparams == None: hyperparams={'objective':'binary:logistic', 'n_estimators':100, 'eta':0.05, 'max_depth':4, 'subsample':0.6, 'colsample_bytree':0.6, 'gamma':1}
     # self.model = xgb.XGBClassifier(objective='binary:logistic', n_estimators=100, 
     #                                 eta=0.05, max_depth=4,
@@ -64,10 +64,10 @@ class BDT(Model):
 
 
 class ParamModel(Model):
-  def __init__(self, n_params, n_sig_procs):
+  def __init__(self, n_params, n_sig_procs, hyperparams=None):
     self.n_params = n_params
     self.n_sig_procs = n_sig_procs
-    self.initModel()
+    self.initModel(hyperparams)
 
   def equaliseWeights(self, X, y, w):
     #In ParamModel we first equalise weights among signal processes
@@ -122,10 +122,11 @@ class ParamModel(Model):
     return X, y, w
 
 #hyperparams = {'base_score': 0.5, 'booster': 'gbtree', 'colsample_bylevel': 1, 'colsample_bytree': 0.6, 'gamma': 0, 'learning_rate': 0.1, 'max_delta_step': 0, 'max_depth': 3, 'min_child_weight': 0.01, 'missing': np.nan, 'n_estimators': 200, 'n_jobs': 1, 'nthread': None, 'objective': 'binary:logistic', 'random_state': 0, 'reg_alpha': 0, 'reg_lambda': 1, 'scale_pos_weight': 1, 'seed': None, 'silent': True, 'subsample': 1, 'eta': 0.3, 'maxDepth': 6}
-hyperparams = {'colsample_bytree':0.6, 'eta':0.3, 'maxDepth':6, 'min_child_weight':0.01}
+#hyperparams = {'colsample_bytree':0.6, 'eta':0.3, 'maxDepth':6, 'min_child_weight':0.01}
 
 class ParamBDT(ParamModel):
-  def initModel(self):
+  def initModel(self, hyperparams=None):
+    if hyperparams == None: hyperparams={'objective':'binary:logistic', 'n_estimators':100, 'eta':0.05, 'max_depth':4, 'subsample':0.6, 'colsample_bytree':0.6, 'gamma':1}
     #self.model = xgb.XGBClassifier(objective='binary:logistic', n_estimators=200, 
     #                               eta=0.05, max_depth=4,
     #                               subsample=0.6, colsample_bytree=0.6, gamma=1)

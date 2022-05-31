@@ -9,77 +9,146 @@ import scipy.interpolate as spi
 import scipy.optimize as spo
 
 from signalModelling.signal_fit import fitDCB
+import signalModelling.signal_fit as signal_fit
+
+import argparse
+import os
+import json
+import common
 
 mplhep.set_style("CMS")
 plt.rcParams["figure.figsize"] = (12.5,10)
 
-def getSignalNormalisation(df, mass, boundaries):
-  masses = sorted(np.unique(df.mX))
-  sig_norm = [df.loc[(df.mX==m)&(df.transformed_score>boundaries[0])&(df.transformed_score<=boundaries[1]), "weight_central"].sum()/(59*1000) for m in masses]
-  #sig_norm = [df.loc[(df.mX==m), "weight_central"].sum()/(59*1000) for m in masses]
-  f = spi.interp1d(masses, sig_norm)
-  return float(f(mass))
+# def getSignalNormalisation(df, mass, boundaries):
+#   masses = sorted(np.unique(df.mX))
+#   sig_norm = [df.loc[(df.mX==m)&(df.transformed_score>boundaries[0])&(df.transformed_score<=boundaries[1]), "weight"].sum()/(59*1000) for m in masses]
+#   #sig_norm = [df.loc[(df.mX==m), "weight"].sum()/(59*1000) for m in masses]
+#   f = spi.interp1d(masses, sig_norm)
+#   return float(f(mass))
 
-def getSignalModel(df, mass, boundaries):
-  nominal_masses = sorted(np.unique(df.mX))
-  #masses.remove(400)
-  select = lambda df, m, b: df[(df.mX==m)&(df.transformed_score>b[0])&(df.transformed_score<=b[1])]
-  
+def getParamSplines(nominal_masses, popts):
+  n_params = len(popts[0])
+  splines = [spi.interp1d(nominal_masses, popts[:, i], kind='linear') for i in range(n_params)]
+  return splines
+
+def fitSignalModels(df, nominal_masses, outdir):  
   popts = []
   perrs = []
   for m in nominal_masses:
-    print(len(select(df, m, boundaries)))
-    print(len(df[df.mX==m]))
-    popt, perr = fitDCB(select(df, m, boundaries), fit_range="auto", plot=True, name="_%d"%m)
+    print(m)
+    popt, perr = fitDCB(df[df.MX==m], fit_range=[120,130], savepath=os.path.join(outdir, "mx_%d.png"%m))
     popts.append(popt)
     perrs.append(perr)
   popts = np.array(popts)
   perrs = np.array(perrs)
 
-  n_params = len(popts[0])
-  splines = [spi.interp1d(nominal_masses, popts[:, i], kind='cubic') for i in range(n_params)]
-  
-  try:
-    interpolated_parameters = np.array([[splines[i](m) for i in range(n_params)] for m in mass])
-  except:
-    interpolated_parameters = [splines[i](m) for i in range(n_params)]
-  return interpolated_parameters
+  return popts, perrs
 
-def deriveRadionModels(bounds):
-  mx = [300,400,500,800,1000]
-  proc_dict = {18:300, 19:400, 20:500, 21:800, 22:1000}
-  dfs = []
-  for key in proc_dict.keys():
-    df_mx = pd.read_parquet("training_output/Radion_paramBDT/radionM%d_HHggTauTau/output.parquet"%proc_dict[key])
-    dfs.append(df_mx[df_mx.process_id==key])
+lumi_table = {
+  2016: 35.9,
+  2017: 41.5,
+  2018: 59.8
+}
 
-  df = pd.concat([d[d.y==1] for d in dfs])
+def deriveModels(original_df, nominal_masses, masses, original_outdir):
+  for year in np.unique(original_df.year):
+    print(year)
+    for SR in np.unique(original_df.SR):
+      print(SR)
+      df = original_df[(original_df.year==year)&(original_df.SR==SR)]
 
-  df["mX"] = 0
-  for proc_id in proc_dict.keys():
-    df.loc[df.process_id==proc_id, "mX"] = proc_dict[proc_id]
+      outdir = os.path.join(original_outdir, str(year), str(SR))
+      os.makedirs(outdir, exist_ok=True)
 
-  norms = [getSignalNormalisation(df, m, bounds) for m in [300, 400, 500, 800, 1000]]
-  parameters = getSignalModel(df, [300, 400, 500, 800, 1000], bounds)
+      norms = [df.loc[(df.MX==m), "weight"].sum()/lumi_table[year] for m in nominal_masses]
+      norm_spline = spi.interp1d(nominal_masses, norms, kind='linear')
+      norms = [float(norm_spline(m)) for m in masses]
 
-  plotInterpolation(parameters)
+      print("Fitting signal models")     
+      popts, perrs = fitSignalModels(df, nominal_masses, outdir)
+      splines = getParamSplines(nominal_masses, popts)  
+      parameters = np.array([[splines[i](m) for i in range(len(popts[0]))] for m in masses])
 
-  models = {}
-  for i, m in enumerate(mx):
-    models[m] = [norms[i], parameters[i].tolist()]
-  
-  import json
-  with open("model_cat0.json", "w") as f:
-    json.dump(models, f, indent=4)
+      print("Plotting interpolation")
+      plotInterpolation(nominal_masses, masses, popts, perrs, parameters, outdir)
+      
+      print("Dumping models")
+      models = {}
+      for i, m in enumerate(masses):
+        models[m] = [norms[i], parameters[i].tolist()]
 
-def plotInterpolation(parameters):
-  mx = [300,400,500,800,1000]
+      with open(os.path.join(outdir, "model.json"), "w") as f:
+        json.dump(models, f, indent=4)
+
+      print("Checking interpolation")
+      for m in nominal_masses[1:-1]:
+       checkInterpolation(df, nominal_masses, m, popts, outdir)
+
+def plotInterpolation(nominal_masses, masses, popts, perrs, parameters, outdir):
+  parameter_names = [r"$N$", r"$\bar{m}_{\gamma\gamma}$", r"$\sigma$", r"$\beta_l$", r"$m_l$", r"$\beta_r$", r"$m_r$"]
   for i in range(len(parameters[0])):
-    plt.scatter(mx, parameters[:, i])
-    plt.savefig("p%d.png"%i)
+    plt.scatter(masses, parameters[:, i], marker=".", label="Intermediate masses")
+    plt.errorbar(nominal_masses, popts[:, i], perrs[:, i], fmt='ro', label="Nominal masses")
+    plt.legend()
+    plt.ylabel(parameter_names[i])
+    plt.xlabel(r"$m_X$")
+    plt.savefig(os.path.join(outdir, "p%d.png"%i))
     plt.clf()
 
-deriveRadionModels([0.95, 1.0])
+def plotSigFit(df, m, popts):
+  sumw, edges = np.histogram(df.Diphoton_mass, bins=nbins, range=fit_range, density=False, weights=df.weight)
+  N, edges = np.histogram(df.Diphoton_mass, bins=nbins, range=fit_range, density=False)
+  bin_centers = (edges[:-1] + edges[1:])/2
+  
+  errors = sumw / np.sqrt(N)
+  errors = np.nan_to_num(errors)
+  non_zero_indicies = np.arange(len(errors))[errors>0]
+  for i, lt in enumerate(errors<=0):
+    if lt:
+      closest_match = non_zero_indicies[np.argmin(np.abs(non_zero_indicies-i))]
+      errors[i] = errors[closest_match]
+
+def checkInterpolation(df, nominal_masses, m, popts, outdir):
+  idx = np.where(nominal_masses==m)[0][0]
+  idx1 = idx - 1
+  idx2 = idx + 1
+
+  fit_range = (120, 130)
+  nbins=50
+  bin_centers, sumw, errors = signal_fit.histogram(df[df.MX==m], fit_range, nbins)
+
+  splines = getParamSplines(nominal_masses[[idx1, idx2]], popts[[idx1, idx2]])
+
+  popt_interp = [spline(m) for spline in splines]
+  popt_nominal = popts[idx]
+  signal_fit.plotFitComparison(bin_centers, sumw, errors, fit_range, popt_nominal, popt_interp, os.path.join(outdir, "mx_%d_interp_check.png"%m))
+  signal_fit.plotFitComparison(bin_centers, sumw, errors, fit_range, popt_nominal, popt_interp, os.path.join(outdir, "mx_%d_interp_check_normed.png"%m), normed=True)
+
+def main(args):
+  df = pd.read_parquet(args.parquet_input)
+  df = df[df.y==1]
+  with open(args.summary_input) as f:
+    proc_dict = json.load(f)['sample_id_map']
+  common.add_MX_MY(df, proc_dict)
+  print(np.unique(df.MX))
+
+  masses = np.arange(df.MX.min(), df.MX.max(), args.step)
+  print(masses)
+
+  nominal_masses = np.sort(np.unique(df.MX))
+  deriveModels(df, nominal_masses, masses, args.outdir)
+
+if __name__=="__main__":
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--parquet-input', '-i', type=str, required=True)
+  parser.add_argument('--summary-input', '-s', type=str, required=True)
+  parser.add_argument('--outdir', '-o', type=str, required=True)
+  parser.add_argument('--step', type=float, default=10.0)
+  args = parser.parse_args()
+  
+  os.makedirs(args.outdir, exist_ok=True)
+
+  main(args)
 
 
 """

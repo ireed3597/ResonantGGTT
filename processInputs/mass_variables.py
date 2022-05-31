@@ -25,7 +25,9 @@ def add_reco_MX(df):
   HH_E = H1_E + H2_E
 
   df["reco_MX"] = np.sqrt(HH_E**2 - HH_px**2 - HH_py**2 - HH_pz**2)
+  df["reco_MX_mgg"] = df["reco_MX"] / df["Diphoton_mass"]
   df.loc[df.category == 8, "reco_MX"] = common.dummy_val
+  df.loc[df.category == 8, "reco_MX_mgg"] = common.dummy_val
 
 # def add_MX_met1(df):
 #   H1_px = df.Diphoton_pt * np.cos(df.Diphoton_phi)
@@ -113,7 +115,9 @@ def add_reco_MX_met4(df):
   HH_E = H1_E + H2_E
 
   df["reco_MX_MET"] = np.sqrt(HH_E**2 - HH_px**2 - HH_py**2 - HH_pz**2)
+  df["reco_MX_MET_mgg"] = df["reco_MX_MET"] / df["Diphoton_mass"]
   df.loc[df.category == 8, "reco_MX_MET"] = common.dummy_val
+  df.loc[df.category == 8, "reco_MX_MET_mgg"] = common.dummy_val
 
 def add_Mggt(df):
   H1_px = df.Diphoton_pt * np.cos(df.Diphoton_phi)
@@ -134,6 +138,9 @@ def add_Mggt(df):
   HH_E = H1_E + H2_E
 
   df["reco_Mggtau"] = np.sqrt(HH_E**2 - HH_px**2 - HH_py**2 - HH_pz**2)
+  df["reco_Mggtau_mgg"] = df["reco_Mggtau"] / df["Diphoton_mass"]
+  df["reco_Mggtau_mgg2"] = df["reco_Mggtau"] - df["Diphoton_mass"]
+
 
 def add_Mggt_met1(df):
   H1_px = df.Diphoton_pt * np.cos(df.Diphoton_phi)
@@ -159,6 +166,7 @@ def add_Mggt_met1(df):
   HH_E = H1_E + H2_E + MET_E
 
   df["reco_MggtauMET"] = np.sqrt(HH_E**2 - HH_px**2 - HH_py**2 - HH_pz**2)
+  df["reco_MggtauMET_mgg"] = df["reco_MggtauMET"] / df["Diphoton_mass"]
 
 # def add_Mggt_met2(df):
 #   H1_px = df.Diphoton_pt * np.cos(df.Diphoton_phi)

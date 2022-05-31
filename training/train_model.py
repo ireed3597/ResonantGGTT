@@ -1,3 +1,4 @@
+from unicodedata import numeric
 import pandas as pd
 import numpy as np
 from xgboost import plot_importance
@@ -96,17 +97,17 @@ def addTransformedScores(args, df, bkg):
     df.loc[df[intermediate_name]<0, intermediate_name] = 0
     df.loc[df[intermediate_name]>1, intermediate_name] = 1
 
-    transformed_name = "transformed_score_%s"%sig_proc
-    df[transformed_name] = generic_sig_cdf(df[intermediate_name])
-    df.loc[df[transformed_name]<0, transformed_name] = 0
-    df.loc[df[transformed_name]>1, transformed_name] = 1
+    # transformed_name = "transformed_score_%s"%sig_proc
+    # df[transformed_name] = generic_sig_cdf(df[intermediate_name])
+    # df.loc[df[transformed_name]<0, transformed_name] = 0
+    # df.loc[df[transformed_name]>1, transformed_name] = 1
     
     assert (df[score_name] < 0).sum() == 0
     assert (df[score_name] > 1).sum() == 0
     assert (df[intermediate_name] < 0).sum() == 0
     assert (df[intermediate_name] > 1).sum() == 0
-    assert (df[transformed_name] < 0).sum() == 0
-    assert (df[transformed_name] > 1).sum() == 0
+    # assert (df[transformed_name] < 0).sum() == 0
+    # assert (df[transformed_name] > 1).sum() == 0
 
 def doROC(train_df, test_df, sig_proc, proc_dict):
   #select just bkg and sig_proc
@@ -142,6 +143,7 @@ def evaluatePlotAndSave(args, proc_dict, model, train_features, train_df, test_d
   for sig_proc in args.eval_sig_procs:
     print(sig_proc)
     doROC(train_df, test_df, sig_proc, proc_dict)
+  if args.only_ROC: return None
 
   if args.outputOnlyTest:
     output_df = pd.concat([test_df, data])
@@ -193,7 +195,7 @@ def main(args):
   train_features = common.train_features[args.train_features]
   train_sig_ids = [proc_dict[sig_proc] for sig_proc in args.train_sig_procs]
 
-  if "Param" in args.model: classifier = getattr(models, args.model)(n_params=2, n_sig_procs=len(args.train_sig_procs))
+  if "Param" in args.model: classifier = getattr(models, args.model)(n_params=2, n_sig_procs=len(args.train_sig_procs), hyperparams=args.hyperparams)
   else:                     classifier = getattr(models, args.model)(args.hyperparams)
 
   if args.drop_preprocessing:
@@ -201,6 +203,8 @@ def main(args):
     model = Pipeline([('to_numpy', to_numpy), ('classifier', classifier)])
   else:
     numeric_features, categorical_features = preprocessing.autoDetermineFeatureTypes(train_df, train_features)
+    print("Numeric features:", numeric_features)
+    print("Categorical features:", categorical_features)
     model = Pipeline([('transformer', preprocessing.Transformer(numeric_features, categorical_features)), ('classifier', classifier)])
 
   sumw_before = train_df.weight.sum()
@@ -239,12 +243,13 @@ def doParamTests(args):
   common.submitToBatch([sys.argv[0]] + common.parserToList(args_copy))
 
   #training on individual
-  for sig_proc in args.train_sig_procs:
-    args_copy = copy.deepcopy(args)
-    args_copy.outdir = os.path.join(args.outdir, "only")
-    args_copy.train_sig_procs = [sig_proc]
-    args_copy.eval_sig_procs = [sig_proc]
-    common.submitToBatch([sys.argv[0]] + common.parserToList(args_copy))
+  if not args.skip_only_test:
+    for sig_proc in args.train_sig_procs:
+      args_copy = copy.deepcopy(args)
+      args_copy.outdir = os.path.join(args.outdir, "only")
+      args_copy.train_sig_procs = [sig_proc]
+      args_copy.eval_sig_procs = [sig_proc]
+      common.submitToBatch([sys.argv[0]] + common.parserToList(args_copy))
 
   #skip one
   #training on individual
@@ -294,6 +299,8 @@ if __name__=="__main__":
   parser.add_argument('--batch', action="store_true")
   parser.add_argument('--feature-importance', action="store_true")
   parser.add_argument('--do-param-tests', action="store_true")
+  parser.add_argument('--skip-only-test', action="store_true")
+  parser.add_argument('--only-ROC', action="store_true")
 
   parser.add_argument('--hyperparams',type=str, default=None)
   parser.add_argument('--hyperparams-grid', type=str, default=None)
@@ -308,29 +315,31 @@ if __name__=="__main__":
   
   args.train_sig_procs = list(filter(lambda x: x not in args.train_sig_procs_exclude, args.train_sig_procs))
 
+  """
   if args.feature_importance:
     assert args.model == "BDT"
     assert len(args.train_sig_procs) == len(args.eval_sig_procs) == 1
     assert args.drop_preprocessing
+  """
 
   if args.hyperparams_grid != None:
     assert args.hyperparams == None
     doHyperParamSearch(args)
     exit(0)
 
-  if args.hyperparams != None:
-    with open(args.hyperparams, "r") as f:
-      args.hyperparams = json.load(f)
-    print(args.hyperparams)
-
   if args.do_param_tests:
     assert args.batch
     doParamTests(args)
     exit(0)
-
+    
   if args.batch:
     common.submitToBatch(sys.argv)
     exit(0)
+
+  if args.hyperparams != None:
+    with open(args.hyperparams, "r") as f:
+      args.hyperparams = json.load(f)
+    print(args.hyperparams)
 
   print(">> Will train on:")
   print("\n".join(args.train_sig_procs))

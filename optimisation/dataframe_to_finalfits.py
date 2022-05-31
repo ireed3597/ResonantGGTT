@@ -72,9 +72,9 @@ def main(args):
     print(year)
     for SR in data.SR.unique():
       print(SR)
-      writeOutputTree(sig_s[sig_s.SR==SR].Diphoton_mass, sig_s[sig_s.SR==SR].weight, "%s_%d"%(proc_name, mgg), "%scat%d"%(proc_name, SR), year, undo_lumi_scaling=True, scale_signal=False)
+      writeOutputTree(sig_s[(sig_s.SR==SR)&(sig.year==year)].Diphoton_mass, sig_s[(sig_s.SR==SR)&(sig.year==year)].weight, "%s_%d"%(proc_name, mgg), "%scat%d"%(proc_name, SR), year, undo_lumi_scaling=True, scale_signal=False)
       #writeOutputTree(bkg[bkg.SR==SR].Diphoton_mass, bkg[bkg.SR==SR].weight, "VH_125", "radionm%dcat%d"%(mass, SR), 2018, scale_signal=False)
-      writeOutputTree(data[data.SR==SR].Diphoton_mass, data[data.SR==SR].weight, "Data", "%scat%d"%(proc_name, SR), year)
+      writeOutputTree(data[(data.SR==SR)&(data.year==year)].Diphoton_mass, data[(data.SR==SR)&(data.year==year)].weight, "Data", "%scat%d"%(proc_name, SR), year)
 
 if __name__=="__main__":
   parser = argparse.ArgumentParser()

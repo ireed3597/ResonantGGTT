@@ -7,19 +7,6 @@ import mass_variables
 
 dphi = lambda x, y: abs(x-y) - 2*(abs(x-y) - np.pi) * (abs(x-y) // np.pi)
 
-def add_MX_MY(df, proc_dict):
-  #get sig_procs in parquet file
-  sig_procs = [sig_proc for sig_proc in common.sig_procs["all"] if sig_proc in proc_dict.keys()]
-
-  df["MX"] = common.dummy_val
-  df["MY"] = common.dummy_val
-  
-  for sig_proc in sig_procs:
-    MX, MY = common.get_MX_MY(sig_proc)
-    
-    df.loc[df.process_id==proc_dict[sig_proc], "MX"] = MX
-    df.loc[df.process_id==proc_dict[sig_proc], "MY"] = MY
-
 # def divide_pt_by_mgg(df):
 #   pt_columns = ["Diphoton_pt", "LeadPhoton_pt", "SubleadPhoton_pt"]
 #   for column in pt_columns:
@@ -198,7 +185,7 @@ def main(args):
   with open(args.summary_input, "r") as f:
     proc_dict = json.load(f)["sample_id_map"]
 
-  add_MX_MY(df, proc_dict)
+  common.add_MX_MY(df, proc_dict)
 
   applyPixelVeto(df)
 

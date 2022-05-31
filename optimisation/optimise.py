@@ -7,6 +7,8 @@ import json
 from optimisation.limit import optimiseBoundary
 from optimisation.limit import transformScores
 
+from optimisation.limit import getBoundariesPerformance
+
 def loadDataFrame(args):
   df = pd.read_parquet(args.parquet_input)
   with open(args.summary_input) as f:
@@ -26,7 +28,19 @@ def main(args):
 
   optimal_limit, optimal_boundaries, boundaries, limits, ams = optimiseBoundary(bkg_to_optim, sig_to_optim, pres=args.pres, sr=args.sr, low=args.low, high=args.high, step=args.step, nbounds=args.nbounds, include_lower=args.include_lower)
 
-  print(optimal_limit, optimal_boundaries)
+  optimal_limit = round(optimal_limit, 4)
+  for i in range(len(optimal_boundaries)):
+    optimal_boundaries[i] = round(optimal_boundaries[i], 4)
+
+  print(optimal_limit, ams[np.argmin(limits)], optimal_boundaries)
+
+  compare = [0.0, 0.9955, 0.999, 1.0]
+  # c = compare[1]*compare[2]*compare[3]
+  # for i, bounds in enumerate(boundaries):
+  #   if bounds[1]*bounds[2]*bounds[3] == c:
+  #     print(bounds)
+  #     print(limits[i])
+  print(getBoundariesPerformance(bkg_to_optim, sig_to_optim, args.pres, args.sr, compare))
 
   select = lambda df, pair: (df.score > pair[0]) & (df.score <= pair[1])
   bm = bkg_to_optim.mass
@@ -69,7 +83,7 @@ if __name__=="__main__":
 
   os.makedirs(args.outdir, exist_ok=True)
 
-  main(args)
+  df = main(args)
 
 
 

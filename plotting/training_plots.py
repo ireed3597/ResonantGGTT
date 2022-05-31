@@ -38,6 +38,13 @@ def plotROC(train_fpr, train_tpr, test_fpr, test_tpr, savein):
   with open(os.path.join(savein, "ROC.json"), "w") as f:
     json.dump(save_package, f, indent=4)
 
+  save_package = {
+    "train_auc": train_auc,
+    "test_auc": test_auc,
+  }
+  with open(os.path.join(savein, "ROC_skimmed.json"), "w") as f:
+    json.dump(save_package, f, indent=4)
+
   plt.plot(train_fpr, train_tpr, label="Train AUC = %.4f"%train_auc)
   plt.plot(test_fpr, test_tpr, label="Test AUC = %.4f"%test_auc)
   plt.xlabel("False positive rate")

@@ -9,6 +9,8 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder, FunctionTransfo
 import numpy as np
 import tracemalloc
 
+import common
+
 def autoDetermineFeatureTypes(df, train_features):
   #for each in df.columns:
   #  print(each, df[each].dtype)
@@ -39,7 +41,7 @@ class Transformer:
 
   def fit_transform(self, X, y, w):
     print("fit transform 1", tracemalloc.get_traced_memory())
-    X.replace(-999.0, np.nan)
+    X.replace(common.dummy_val, np.nan)
 
     w[y==1] *= w[y==0].sum() / w[y==1].sum()
     print("fit transform 2", tracemalloc.get_traced_memory())
@@ -54,7 +56,7 @@ class Transformer:
 
 
   def transform(self, X, y=None):
-    X.replace(-999.0, np.nan)
+    X.replace(common.dummy_val, np.nan)
 
     X_numeric = self.scaler.transform(X[self.numeric_features])
     X_numeric = self.nan_to_zero.transform(X_numeric)
