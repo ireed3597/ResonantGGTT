@@ -30,6 +30,14 @@ def autoDetermineFeatureTypes(df, train_features):
 
   return numeric_features, categorical_features
 
+def getNTransformedFeatures(df, train_features):
+  """Find out how many training features there will be after transformation"""
+  num, cat = autoDetermineFeatureTypes(df, train_features)
+  n_features = len(num)
+  for feat in cat:
+    n_features += len(np.unique(df[feat]))
+  return n_features
+
 class Transformer:
   def __init__(self, numeric_features, categorical_features):
     self.numeric_features = numeric_features

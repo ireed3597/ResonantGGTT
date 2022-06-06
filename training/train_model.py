@@ -19,6 +19,7 @@ import os
 import sys
 from plotting.training_plots import plotOutputScore
 from plotting.training_plots import plotROC
+from plotting.training_plots import plotLoss
 
 import common
 import models
@@ -32,6 +33,8 @@ def loadDataFrame(args, train_features):
 
   print(">> Loading dataframe")
   df = pd.read_parquet(args.parquet_input, columns=columns_to_load)
+  if args.dataset_fraction != 1.0:
+    df = df.sample(frac=args.dataset_fraction)
   df.rename({"weight_central": "weight"}, axis=1, inplace=True)
   with open(args.summary_input) as f:
     proc_dict = json.load(f)['sample_id_map']
@@ -54,17 +57,27 @@ def loadDataFrame(args, train_features):
 
   return df, proc_dict
 
-def addScores(args, model, train_features, train_df, test_df, data):
+def addScores(args, model, train_features, train_df, test_df, data, MX_to_eval=None):
   pd.options.mode.chained_assignment = None
 
   dfs = [train_df, test_df, data]
-  for sig_proc in args.eval_sig_procs:
-    MX, MY = common.get_MX_MY(sig_proc)
+
+  if MX_to_eval is None:
+    MX_to_eval = []
+    for sig_proc in args.eval_sig_procs:
+      MX, MY = common.get_MX_MY(sig_proc)
+      MX_to_eval.append(MX)
+
+  for MX in MX_to_eval:
+    MY = 125
+    sig_proc = "XToHHggTauTau_M%d"%MX
     print(sig_proc, MX, MY)
     for df in dfs:
       df.loc[:, "MX"] = MX
       df.loc[:, "MY"] = MY
-      df["score_%s"%sig_proc] = model.predict_proba(df[train_features])[:,1] + np.random.normal(scale=1e-8, size=len(df))
+      df["score_%s"%sig_proc] = model.predict_proba(df[train_features])[:,1] + np.random.normal(scale=1e-8, size=len(df)) #little deviation helpful for transforming score later
+      df.loc[:, "score_%s"%sig_proc] = (df["score_%s"%sig_proc] - df["score_%s"%sig_proc].min()) #rescale so everything within 0 and 1
+      df.loc[:, "score_%s"%sig_proc] = (df["score_%s"%sig_proc] / df["score_%s"%sig_proc].max())
 
   pd.options.mode.chained_assignment = "warn"
 
@@ -80,8 +93,10 @@ def addTransformedScores(args, df, bkg):
   Transforms scores such that bkg is flat.
   """
 
-  for sig_proc in args.eval_sig_procs:
-    score_name = "score_%s"%sig_proc
+  #for sig_proc in args.eval_sig_procs:
+  for score_name in filter(lambda x: x.split("_")[0]=="score", df.columns):
+    sig_proc = "".join(score_name.split("_")[1:])
+    #score_name = "score_%s"%sig_proc
 
     df.sort_values(score_name, inplace=True)
     bkg.sort_values(score_name, inplace=True)  
@@ -136,6 +151,23 @@ def featureImportance(args, model, train_features):
   with open(os.path.join(args.outdir, args.train_sig_procs[0], "feature_importances.json"), "w") as f:
     json.dump([feature_importances.to_dict(), feature_importances.index.to_list()], f, indent=4)
 
+def findMassOrdering(args, model, train_df):
+  """Find out order of sig procs in the train and test loss arrays from NN training"""
+  sig_proc_ordering = ["" for proc in args.train_sig_procs]
+  for proc in args.train_sig_procs:
+    MX, MY = common.get_MX_MY(proc)
+    dummy_X = train_df.iloc[0:1]
+    dummy_X.loc[:, "MX"] = MX
+    dummy_X.loc[:, "MY"] = MY
+    
+    trans_dummy_X = model["transformer"].transform(dummy_X)
+    for i, mass in enumerate(model["classifier"].mass_key):
+      if abs(trans_dummy_X[0,-2:] - mass).sum() < 1e-4: #if found mass match
+        sig_proc_ordering[i] = proc
+        break
+  print(sig_proc_ordering)
+  return sig_proc_ordering
+
 def evaluatePlotAndSave(args, proc_dict, model, train_features, train_df, test_df, data):
   addScores(args, model, train_features, train_df, test_df, data)
 
@@ -143,7 +175,18 @@ def evaluatePlotAndSave(args, proc_dict, model, train_features, train_df, test_d
   for sig_proc in args.eval_sig_procs:
     print(sig_proc)
     doROC(train_df, test_df, sig_proc, proc_dict)
+
+  if hasattr(model["classifier"], "train_loss"):
+    print(">> Plotting loss curves")
+    train_loss = model["classifier"].train_loss
+    validation_loss = model["classifier"].validation_loss
+    plotLoss(train_loss.sum(axis=1), validation_loss.sum(axis=1), args.outdir)
+    for i, proc in enumerate(findMassOrdering(args, model, train_df)):
+      plotLoss(train_loss[:,i], validation_loss[:,i], os.path.join(args.outdir, proc))
+
   if args.only_ROC: return None
+  
+  addScores(args, model, train_features, train_df, test_df, data, np.arange(260, 1000+10, 10))
 
   if args.outputOnlyTest:
     output_df = pd.concat([test_df, data])
@@ -183,19 +226,28 @@ def main(args):
   print("Before loading", tracemalloc.get_traced_memory())
   df, proc_dict = loadDataFrame(args, train_features)
   
+  #shuffle bkg masses
+  s = (df.y==0)&(df.process_id!=proc_dict["Data"])
+  df.loc[s, "MX"] = np.random.choice(np.unique(df.loc[df.y==1, "MX"]), size=sum(s))
+  df.loc[s, "MY"] = np.random.choice(np.unique(df.loc[df.y==1, "MY"]), size=sum(s))
+
   print("After loading", tracemalloc.get_traced_memory())
   MC = df[~(df.process_id==proc_dict["Data"])]
   data = df[df.process_id==proc_dict["Data"]]
   del df
 
-  train_df, test_df = train_test_split(MC, test_size=args.test_size)
+  train_df, test_df = train_test_split(MC, test_size=args.test_size, random_state=1)
   del MC
   print("After splitting", tracemalloc.get_traced_memory())
+
+  if args.remove_gjets:
+    gjet_ids = [proc_dict[proc] for proc in common.bkg_procs["GJets"]]
+    train_df = train_df[~train_df.process_id.isin(gjet_ids)]
 
   train_features = common.train_features[args.train_features]
   train_sig_ids = [proc_dict[sig_proc] for sig_proc in args.train_sig_procs]
 
-  if "Param" in args.model: classifier = getattr(models, args.model)(n_params=2, n_sig_procs=len(args.train_sig_procs), hyperparams=args.hyperparams)
+  if "Param" in args.model: classifier = getattr(models, args.model)(n_params=2, n_sig_procs=len(args.train_sig_procs), n_features=preprocessing.getNTransformedFeatures(train_df, train_features), hyperparams=args.hyperparams)
   else:                     classifier = getattr(models, args.model)(args.hyperparams)
 
   if args.drop_preprocessing:
@@ -212,8 +264,10 @@ def main(args):
   print("Before training", tracemalloc.get_traced_memory())
 
   s = train_df.y==0 | train_df.process_id.isin(train_sig_ids)
+  s_test = test_df.y==0 | test_df.process_id.isin(train_sig_ids)
   fit_params = {"classifier__w": train_df[s]["weight"]}
   if not args.drop_preprocessing: fit_params["transformer__w"] = train_df[s]["weight"]
+  if hasattr(model["classifier"], "setOutdir"): model["classifier"].setOutdir(args.outdir)
   print(">> Training")
   model.fit(train_df[s][train_features], train_df[s]["y"], **fit_params)
   print(">> Training complete")
@@ -301,6 +355,8 @@ if __name__=="__main__":
   parser.add_argument('--do-param-tests', action="store_true")
   parser.add_argument('--skip-only-test', action="store_true")
   parser.add_argument('--only-ROC', action="store_true")
+  parser.add_argument('--remove-gjets', action="store_true")
+  parser.add_argument('--dataset-fraction', type=float, default=1.0, help="Only use a fraction of the whole dataset.")
 
   parser.add_argument('--hyperparams',type=str, default=None)
   parser.add_argument('--hyperparams-grid', type=str, default=None)

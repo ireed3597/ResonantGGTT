@@ -64,9 +64,10 @@ class BDT(Model):
 
 
 class ParamModel(Model):
-  def __init__(self, n_params, n_sig_procs, hyperparams=None):
+  def __init__(self, n_params, n_sig_procs, n_features, hyperparams=None):
     self.n_params = n_params
     self.n_sig_procs = n_sig_procs
+    self.n_features = n_features
     self.initModel(hyperparams)
 
   def equaliseWeights(self, X, y, w):
@@ -121,9 +122,6 @@ class ParamModel(Model):
     print("Bkg inflate 6", tracemalloc.get_traced_memory())
     return X, y, w
 
-#hyperparams = {'base_score': 0.5, 'booster': 'gbtree', 'colsample_bylevel': 1, 'colsample_bytree': 0.6, 'gamma': 0, 'learning_rate': 0.1, 'max_delta_step': 0, 'max_depth': 3, 'min_child_weight': 0.01, 'missing': np.nan, 'n_estimators': 200, 'n_jobs': 1, 'nthread': None, 'objective': 'binary:logistic', 'random_state': 0, 'reg_alpha': 0, 'reg_lambda': 1, 'scale_pos_weight': 1, 'seed': None, 'silent': True, 'subsample': 1, 'eta': 0.3, 'maxDepth': 6}
-#hyperparams = {'colsample_bytree':0.6, 'eta':0.3, 'maxDepth':6, 'min_child_weight':0.01}
-
 class ParamBDT(ParamModel):
   def initModel(self, hyperparams=None):
     if hyperparams == None: hyperparams={'objective':'binary:logistic', 'n_estimators':100, 'eta':0.05, 'max_depth':4, 'subsample':0.6, 'colsample_bytree':0.6, 'gamma':1}
@@ -150,37 +148,49 @@ class ParamBDT(ParamModel):
 
     return self.model.predict_proba(X)
 
-class ParamNN(Model):
-  def initModel(self):
-    # self.model = torch.nn.Sequential(
-    #               torch.nn.Linear(len(self.train_features),1),
-    #               torch.nn.ELU(),
-    #               torch.nn.Flatten(0,1),
-    #               torch.nn.Sigmoid()
-    #               )
+class ParamNN(ParamModel):
+  def initModel(self, hyperparams=None):
+    self.outdir = None
+    self.model_save_name = None
 
-    # self.model = torch.nn.Sequential(
-    #               torch.nn.Linear(len(self.train_features),10),
-    #               torch.nn.ELU(),
-    #               torch.nn.Linear(10,10),
-    #               torch.nn.ELU(),
-    #               torch.nn.Linear(10,1),
-    #               torch.nn.Flatten(0,1),
-    #               torch.nn.Sigmoid()
-    #             )
-
-    nfeatures = len(self.train_features)
-    self.model = torch.nn.Sequential(
-                  torch.nn.Linear(nfeatures,int(nfeatures/2)),
-                  torch.nn.Dropout(0.1),
-                  torch.nn.ELU(),
-                  torch.nn.Linear(int(nfeatures/2),int(nfeatures/2)),
-                  torch.nn.Dropout(0.1),
-                  torch.nn.ELU(),
-                  torch.nn.Linear(int(nfeatures/2),1),
-                  torch.nn.Flatten(0,1),
-                  torch.nn.Sigmoid()
-                )
+    if hyperparams==None:
+      self.hyperparams = {
+        "max_epochs": 100,
+        "batch_size": 128,
+        "lr": 0.01,
+        #"min_epoch": 20,
+        #"grace_epochs": 15,
+        "min_epoch": 5,
+        "grace_epochs": 5,
+        "tol": 0.01,
+        "gamma": 0.9,
+        "dropout": 0,
+        "n_layers": 2,
+        "n_nodes": 10
+      }
+    else:
+      self.hyperparams = hyperparams
+    
+    modules = [
+      torch.nn.Linear(self.n_features,self.hyperparams["n_nodes"]),
+      torch.nn.Dropout(self.hyperparams["dropout"]),
+      torch.nn.ELU()
+      ]
+    for i in range(self.hyperparams["n_layers"]-1):
+      middle_layer = [
+        torch.nn.Linear(self.hyperparams["n_nodes"],self.hyperparams["n_nodes"]),
+        torch.nn.Dropout(self.hyperparams["dropout"]),
+        torch.nn.ELU()
+      ]
+      modules.extend(middle_layer)
+    last_layer = [
+      torch.nn.Linear(self.hyperparams["n_nodes"],1),
+      torch.nn.Flatten(0,1),
+      torch.nn.Sigmoid()
+    ]
+    modules.extend(last_layer)
+    
+    self.model = torch.nn.Sequential(*modules)
 
   def printParameters(self):
     for name, param in self.model.named_parameters():
@@ -202,17 +212,27 @@ class ParamNN(Model):
       losses.append(loss.item())
     return sum(losses)
 
-  def getBatches(self, X, y, w, batch_size, shuffle=False):
-    if shuffle:
-      shuffle_ids = np.random.permutation(len(X))
+  def getBatches(self, X, y, w, batch_size, shuffle=False, weighted=False, epoch_size=None):
+    if epoch_size==None: epoch_size = len(X)
+
+    if shuffle and not weighted:
+      shuffle_ids = np.random.choice(len(X), epoch_size, replace=False)
       X_sh = X[shuffle_ids].copy()
       y_sh = y[shuffle_ids].copy()
       w_sh = w[shuffle_ids].copy()
+    elif weighted:
+      weighted_ids = np.random.choice(len(X), epoch_size, replace=True, p=abs(w)/sum(abs(w)))
+      X_sh = X[weighted_ids].copy()
+      y_sh = y[weighted_ids].copy()
+      w_sh = w[weighted_ids].copy()
+      w_sh[w_sh>0] = 1
+      w_sh[w_sh<0] = -1
     else:
       X_sh = X.copy()
       y_sh = y.copy()
-      w_sh = w.copy()
-    for i_picture in range(0, len(X), batch_size):
+      w_sh = w.copy()  
+    
+    for i_picture in range(0, epoch_size, batch_size):
       batch_X = X_sh[i_picture:i_picture + batch_size]
       batch_y = y_sh[i_picture:i_picture + batch_size]
       batch_w = w_sh[i_picture:i_picture + batch_size]
@@ -223,7 +243,7 @@ class ParamNN(Model):
 
       yield X_torch, y_torch, w_torch
 
-  def shouldEarlyStop(self, losses, min_epoch=10, grace_epochs=5, tol=0.01):
+  def shouldEarlyStop(self):
     """
     Want to stop if seeing no appreciable improvment.
     Check 1. Was the best score more than grace_epochs epochs ago?
@@ -231,12 +251,12 @@ class ParamNN(Model):
              tol percent over grace_epochs?
     """
 
-    n_epochs = len(losses)
+    n_epochs = len(self.validation_loss)
 
-    if n_epochs < min_epoch:
+    if n_epochs < self.hyperparams["min_epoch"]:
       return False
 
-    losses = np.array(losses)
+    losses = np.array(self.validation_loss)
     slosses = losses.sum(axis=1)
 
     # #check to see if loss unstable
@@ -256,17 +276,17 @@ class ParamNN(Model):
     best_loss = slosses.min()
     best_loss_epoch = np.where(slosses==best_loss)[0][0] + 1
 
-    if n_epochs - best_loss_epoch > grace_epochs:
+    if n_epochs - best_loss_epoch > self.hyperparams["grace_epochs"]:
       print("Best loss happened a while ago")
       return True
 
     #check to see if any mass points making good progress
-    if n_epochs > grace_epochs:
+    if n_epochs > self.hyperparams["grace_epochs"]:
       any_make_good_improvement = False
-      for i in range(len(self.train_masses)):
+      for i in range(len(losses[0])):
         best_loss = losses[:,i].min()        
-        best_loss_before = losses[:,i][:-grace_epochs].min()
-        if (best_loss_before-best_loss)/best_loss > tol:
+        best_loss_before = losses[:,i][:-self.hyperparams["grace_epochs"]].min()
+        if (best_loss_before-best_loss)/best_loss > self.hyperparams["tol"]:
           any_make_good_improvement = True
           break
       if not any_make_good_improvement:
@@ -275,19 +295,26 @@ class ParamNN(Model):
 
     return False
 
-  def shouldSchedulerStep(self, losses):
-    n_epochs = len(losses)
+  def shouldSchedulerStep(self):
+    # n_epochs = len(losses)
     
-    losses = np.array(losses)
-    slosses = losses.sum(axis=1)
-    best_loss = slosses.min()
-    best_loss_epoch = np.where(slosses==best_loss)[0][0] + 1
+    # losses = np.array(losses)
+    # slosses = losses.sum(axis=1)
+    # best_loss = slosses.min()
+    # best_loss_epoch = np.where(slosses==best_loss)[0][0] + 1
 
-    if ((n_epochs - best_loss_epoch) > 10) and ((n_epochs - self.last_step_epoch) > 10):
-      self.last_step_epoch = n_epochs
-      return True
-    else:
-      return False
+    # if ((n_epochs - best_loss_epoch) > 10) and ((n_epochs - self.last_step_epoch) > 10):
+    #   self.last_step_epoch = n_epochs
+    #   return True
+    # else:
+    #   return False
+
+    #return False
+
+    if len(self.train_loss) < 2: return False
+    losses = np.array(self.train_loss)
+    slosses = losses.sum(axis=1)
+    return slosses[-1] > slosses[-2]
 
   def updateLossPlot(self, train_loss, test_loss, lr):
     if not self.alreadyPlotting:
@@ -313,94 +340,112 @@ class ParamNN(Model):
       self.figure.canvas.draw()    
       self.figure.canvas.flush_events()
 
-  def train(self, X_train, y_train, X_test, y_test, w_train, w_test, max_epochs=50, batch_size=128, lr=0.001, min_epoch=50, grace_epochs=5, tol=0.01, gamma=0.9, save_location=None):
-    self.alreadyPlotting = False
-    self.last_step_epoch = 0
+  def setOutdir(self, outdir):
+    self.outdir = outdir
 
-    X_train, y_train, w_train = self.inflateBkgWithMasses(X_train, y_train, w_train)
-    X_test, y_test, w_test = self.inflateBkgWithMasses(X_test, y_test, w_test)
+  def saveModel(self):
+    if self.model_save_name != None:
+      torch.save(self.model, "%s/%s.pt"%(self.outdir, self.model_save_name))
+    else:
+      #existing_model_names = list(filter(lambda x: ".pt" in x, os.listdir(self.outdir)))
+      #self.model_save_name = "model_%d"%(len(existing_model_names))
+      self.model_save_name = "model_%d"%int(self.train_loss[0].sum()*10**6) #something probably unique
+      self.saveModel()
+
+  def loadModel(self):
+    self.model = torch.load("%s/%s.pt"%(self.outdir, self.model_save_name))
+
+  def fit(self, X, y, w):
+    #assert self.has_test_samples
+    self.unique_combinations = np.unique(X[:,-self.n_params:], axis=0) #unique combinations of masses (MX and MY)
+
+    n_unique_bkg = sum(y==0) #number of bkg events before inflating
+    X, y, w = self.inflateBkgWithMasses(X, y, w)
     
-    X_train = X_train.to_numpy()
-    X_test = X_test.to_numpy()
-    y_train = y_train.to_numpy()
-    y_test = y_test.to_numpy()
-    w_train = w_train.to_numpy()
-    w_test = w_test.to_numpy()
-
-    #X_train, y_train, w_train = self.cullSignal(X_train, y_train, w_train)
-    #X_test, y_test, w_test = self.cullSignal(X_test, y_test, w_test)
-
-    nbkg = sum(y_train==0)
-    w_train = self.equaliseWeights(X_train, w_train, y_train, norm=nbkg*10)
-    w_test = self.equaliseWeights(X_test, w_test, y_test, norm=nbkg*10)
+    #split samples into training and validation
+    Xt, Xv, yt, yv, wt, wv = train_test_split(X, y, w, test_size=0.2, random_state=1)
+    self.equaliseWeights(Xt, yt, wt)
+    self.equaliseWeights(Xv, yv, wv)
+    wv *= sum(wt) / sum(wv) #adjust weight of validation to allow comparison of losses
     
-    X_train, y_train, w_train = self.smoothBkgWeights(X_train, y_train, w_train, threshold=2)
-    #X_test, y_test, w_test = self.smoothBkgWeights(X_test, y_test, w_test, threshold=2)
-    print("Minimum weight in training set: ", min(abs(w_train[y_train==0])))
-    print("Maximum weight in training set: ", max(abs(w_train[y_train==0])))
+    print("Minimum weight in training set: ", min(abs(wt[yt==0])))
+    print("Maximum weight in training set: ", max(abs(wt[yt==0])))
 
-    #w_train = self.reweightMass(X_train, y_train, w_train, 0.3, 100)
-    #w_test = self.reweightMass(X_test, y_test, w_test, 0.3, 100)
+    print(">> Training sample summary")
+    self.printNumAndWeight(yt, wt)
+    print(">> Validation sample summary")
+    self.printNumAndWeight(yv, wv)
 
-    self.printSampleSummary(X_train, y_train, X_test, y_test, w_train, w_test)
+    optimizer = torch.optim.Adam(self.model.parameters(), lr=self.hyperparams["lr"])
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=self.hyperparams["gamma"])
 
-    optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
-    #optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
+    self.train_loss = []
+    self.validation_loss = []
 
-    train_loss = []
-    test_loss = []
+    # if save_location != None:
+    #   os.makedirs(save_location, exist_ok=True)
 
-    if save_location != None:
-      os.makedirs(save_location, exist_ok=True)
-
-    with tqdm(range(max_epochs)) as t:
+    with tqdm(range(self.hyperparams["max_epochs"])) as t:
       for i_epoch in t:
-        #X_train, X_test = self.shuffleBkg(X_train, y_train, X_test, y_test)
-
-        for batch_X, batch_y, batch_w in tqdm(self.getBatches(X_train, y_train, w_train, batch_size, shuffle=True), leave=False):
+        for batch_X, batch_y, batch_w in tqdm(self.getBatches(Xt, yt, wt, self.hyperparams["batch_size"], shuffle=True, weighted=True, epoch_size=n_unique_bkg*2), leave=False):
           loss = self.BCELoss(self.model(batch_X), batch_y, batch_w)
           loss.backward()
           optimizer.step()
           optimizer.zero_grad()
           
-        trl = []
-        tel = []
-        for mass in self.train_masses:
-          trl.append(self.getTotLoss(X_train[X_train[:,-1]==mass], y_train[X_train[:,-1]==mass], w_train[X_train[:,-1]==mass], 8192))
-          tel.append(self.getTotLoss(X_test[X_test[:,-1]==mass], y_test[X_test[:,-1]==mass], w_test[X_test[:,-1]==mass], 8192))
-        train_loss.append(np.array(trl))
-        test_loss.append(np.array(tel))
+        tl = []
+        vl = []
 
-        t.set_postfix(train_loss=train_loss[-1].sum(), test_loss=test_loss[-1].sum(), gamma=scheduler.get_last_lr()[0])
+        #calculate loss over different masses
+        # for mass in self.unique_combinations:
+        #   s = (Xt[:,-self.n_params:]==mass).sum(axis=1) == self.n_params #select a particular mass
+        #   tl.append(self.getTotLoss(Xt[s], yt[s], wt[s], 2**13))
+        #   s = (Xv[:,-self.n_params:]==mass).sum(axis=1) == self.n_params #select a particular mass
+        #   vl.append(self.getTotLoss(Xv[s], yv[s], wv[s], 2**13))
         
-        if save_location != None:
-          if test_loss[-1].sum() == np.array(test_loss).sum(axis=1).min(): #if best loss is current loss
-            # with open("%s/model.pt"%save_location, "wb") as f:
-            #   torch.save(self.model, f)
-            torch.save(self.model, "%s/model.pt"%save_location)
+        #calculate loss over whole set only
+        tl_tot = self.getTotLoss(Xt, yt, wt, 2**13)
+        vl_tot = self.getTotLoss(Xv, yv, wv, 2**13)
+        tl = [tl_tot for m in self.unique_combinations]
+        vl = [vl_tot for m in self.unique_combinations]
+        
+        self.train_loss.append(np.array(tl))
+        self.validation_loss.append(np.array(vl))
 
-        if self.shouldSchedulerStep(train_loss):
-          scheduler.step()
+        t.set_postfix(train_loss=self.train_loss[-1].sum(), validation_loss=self.validation_loss[-1].sum(), gamma=scheduler.get_last_lr()[0])
+        
+        if self.outdir != None:
+          if self.validation_loss[-1].sum() == np.array(self.validation_loss).sum(axis=1).min(): #if best loss is current loss
+            self.saveModel()
+
+        if self.shouldSchedulerStep():
+         scheduler.step()
 
         #self.updateLossPlot(train_loss, test_loss, scheduler.get_last_lr()[0])
 
-        if self.shouldEarlyStop(test_loss, min_epoch=min_epoch, grace_epochs=grace_epochs, tol=tol):
+        if self.shouldEarlyStop():
           break
 
-    if save_location != None:
+    if self.outdir != None:
       print("Loading best model")
-      self.model = torch.load("%s/model.pt"%save_location)
+      self.loadModel()
+
+    self.train_loss = np.array(self.train_loss)
+    self.validation_loss = np.array(self.validation_loss)
+    self.mass_key = self.unique_combinations
 
     print("Finished training")
-      
-    return train_loss, test_loss
 
-  def predict(self, X, batch_size=32):
-    X = X.to_numpy()
+  def predict_proba(self, X, batch_size=8192):
+    #find unique combinations of parameters (masses)
+    unique_combinations = np.unique(X[:,-self.n_params:], axis=0)
+    assert len(unique_combinations)==1, print("Expect only one combination of parameters (masses) when evaluating ParamBDT")
+
     predictions = []
     for i_picture in range(0, len(X), batch_size):
       batch_X = X[i_picture:i_picture + batch_size]
       X_torch = torch.tensor(batch_X, dtype=torch.float).reshape(-1, X.shape[1]).to(dev)
       predictions.append(self.model(X_torch).to('cpu').detach().numpy())
-    return np.concatenate(predictions)
+    all_predictions = np.concatenate(predictions)
+
+    return np.concatenate([(1-all_predictions)[:,np.newaxis], all_predictions[:,np.newaxis]], axis=1) #get into format expected by sklearn / xgboost

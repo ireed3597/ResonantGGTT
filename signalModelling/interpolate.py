@@ -60,9 +60,9 @@ def deriveModels(original_df, nominal_masses, masses, original_outdir):
       outdir = os.path.join(original_outdir, str(year), str(SR))
       os.makedirs(outdir, exist_ok=True)
 
-      norms = [df.loc[(df.MX==m), "weight"].sum()/lumi_table[year] for m in nominal_masses]
-      norm_spline = spi.interp1d(nominal_masses, norms, kind='linear')
-      norms = [float(norm_spline(m)) for m in masses]
+      norms_nominal = np.array([df.loc[(df.MX==m), "weight"].sum()/lumi_table[year] for m in nominal_masses])
+      norm_spline = spi.interp1d(nominal_masses, norms_nominal, kind='linear')
+      norms = np.array([float(norm_spline(m)) for m in masses])
 
       print("Fitting signal models")     
       popts, perrs = fitSignalModels(df, nominal_masses, outdir)
@@ -70,8 +70,11 @@ def deriveModels(original_df, nominal_masses, masses, original_outdir):
       parameters = np.array([[splines[i](m) for i in range(len(popts[0]))] for m in masses])
 
       print("Plotting interpolation")
-      plotInterpolation(nominal_masses, masses, popts, perrs, parameters, outdir)
-      
+      popts_n = np.concatenate([popts, norms_nominal[:,np.newaxis]], axis=1)
+      perrs_n  = np.concatenate([perrs, np.zeros_like(norms_nominal)[:,np.newaxis]], axis=1)
+      parameters_n = np.concatenate([parameters, norms[:,np.newaxis]], axis=1)
+      plotInterpolation(nominal_masses, masses, popts_n, perrs_n, parameters_n, outdir)
+
       print("Dumping models")
       models = {}
       for i, m in enumerate(masses):
@@ -85,7 +88,7 @@ def deriveModels(original_df, nominal_masses, masses, original_outdir):
        checkInterpolation(df, nominal_masses, m, popts, outdir)
 
 def plotInterpolation(nominal_masses, masses, popts, perrs, parameters, outdir):
-  parameter_names = [r"$N$", r"$\bar{m}_{\gamma\gamma}$", r"$\sigma$", r"$\beta_l$", r"$m_l$", r"$\beta_r$", r"$m_r$"]
+  parameter_names = [r"$N$", r"$\bar{m}_{\gamma\gamma}$", r"$\sigma$", r"$\beta_l$", r"$m_l$", r"$\beta_r$", r"$m_r$", "Signal Efficiency"]
   for i in range(len(parameters[0])):
     plt.scatter(masses, parameters[:, i], marker=".", label="Intermediate masses")
     plt.errorbar(nominal_masses, popts[:, i], perrs[:, i], fmt='ro', label="Nominal masses")
@@ -124,6 +127,21 @@ def checkInterpolation(df, nominal_masses, m, popts, outdir):
   signal_fit.plotFitComparison(bin_centers, sumw, errors, fit_range, popt_nominal, popt_interp, os.path.join(outdir, "mx_%d_interp_check.png"%m))
   signal_fit.plotFitComparison(bin_centers, sumw, errors, fit_range, popt_nominal, popt_interp, os.path.join(outdir, "mx_%d_interp_check_normed.png"%m), normed=True)
 
+def tagSignals(df, optim_results, proc_dict):
+  df["SR"] = -1
+  
+  boundaries = optim_results["category_boundaries"][::-1] #so that cat0 is most pure
+
+  for proc in proc_dict.keys():
+    if proc_dict[proc] in np.unique(df.process_id):
+      score_name = "intermediate_transformed_score_%s"%proc
+
+      for i in range(len(boundaries)-1):
+        selection = (df[score_name] <= boundaries[i]) & (df[score_name] > boundaries[i+1]) & (df.process_id == proc_dict[proc])
+        df.loc[selection, "SR"] = i
+
+  return df[df.SR!=-1]
+
 def main(args):
   df = pd.read_parquet(args.parquet_input)
   df = df[df.y==1]
@@ -132,8 +150,12 @@ def main(args):
   common.add_MX_MY(df, proc_dict)
   print(np.unique(df.MX))
 
-  masses = np.arange(df.MX.min(), df.MX.max(), args.step)
+  masses = np.arange(df.MX.min(), df.MX.max()+args.step, args.step)
   print(masses)
+
+  with open(args.optim_results) as f:
+    optim_results = json.load(f)
+  tagSignals(df, optim_results, proc_dict)
 
   nominal_masses = np.sort(np.unique(df.MX))
   deriveModels(df, nominal_masses, masses, args.outdir)
@@ -141,6 +163,7 @@ def main(args):
 if __name__=="__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--parquet-input', '-i', type=str, required=True)
+  parser.add_argument('--optim-results', '-r', type=str, required=True)
   parser.add_argument('--summary-input', '-s', type=str, required=True)
   parser.add_argument('--outdir', '-o', type=str, required=True)
   parser.add_argument('--step', type=float, default=10.0)

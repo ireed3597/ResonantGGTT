@@ -4,6 +4,7 @@ import argparse
 import pandas as pd
 import tabulate
 import common
+import numpy as np
 
 def getAUCScore(path, sig_proc):
   if os.path.exists(os.path.join(path, sig_proc, "ROC_skimmed.json")):
@@ -11,9 +12,13 @@ def getAUCScore(path, sig_proc):
   else:
     ROC_path = "ROC.json"
 
-  with open(os.path.join(path, sig_proc, ROC_path), "r") as f:
-    ROC = json.load(f)
-  return ROC["test_auc"]
+  try:
+    with open(os.path.join(path, sig_proc, ROC_path), "r") as f:
+      auc = json.load(f)["test_auc"]
+  except:
+    auc = 0
+  
+  return auc
 
 def getGoodnessScores(results):
   """
@@ -46,6 +51,12 @@ def gatherExperimentResults(path):
   only_path = os.path.join(path, "only")
   skip_path = os.path.join(path, "skip")
   if not os.path.exists(only_path): only_path = all_path
+
+  #if not a param test
+  if not os.path.exists(all_path):
+    all_path = path
+    only_path = path
+    skip_path = path
 
   sig_procs = list(filter(lambda x: os.path.isdir(os.path.join(all_path, x)), os.listdir(all_path)))
 
@@ -109,11 +120,12 @@ def main(args):
     results = [gatherExperimentResults(args.outdir)]
   else:
     results = []
-    for directory in os.listdir(args.outdir):
-      #if "experiment" in directory and os.path.exists(os.path.join(args.outdir, directory, "all")):
-      if "experiment" in directory and os.path.exists(os.path.join(args.outdir, directory, "all")):
-        print(directory)
-        results.append(gatherExperimentResults(os.path.join(args.outdir, directory)))
+
+    exp_nums = [int(directory.split("_")[1]) for directory in os.listdir(args.outdir)]
+    directories = ["experiment_%d"%i for i in range(max(exp_nums)+1)]
+    for directory in directories:
+      print(directory)
+      results.append(gatherExperimentResults(os.path.join(args.outdir, directory)))
 
   for i, each in enumerate(results):
     table = tabulate.tabulate(each.T, headers='keys', floatfmt=".4f")

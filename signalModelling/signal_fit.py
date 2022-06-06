@@ -48,14 +48,18 @@ def dcb(x, N, mean, sigma, beta1, m1, beta2, m2):
 #   return left + middle + right
 
 
-def chi2Fit(x, y, p0, errors, deviate=False):
+def chi2Fit(x, y, p0, errors, deviate=False, level=0):
   lbounds = [0, 120, 0.5, 0.5, 0.01, 0.5, 0.01]
-  hbounds = [5, 130, 2, 4, 10, 4, 10]
+  hbounds = [5, 130, 5, 4, 10, 4, 10]
 
   bounds = (lbounds, hbounds)
 
   p0_copy = p0.copy()
-  if deviate: p0 += np.random.normal(scale=0.1, size=len(p0))
+  if deviate: 
+    #p0[1:] += np.random.normal(scale=0.1, size=len(p0)-1)
+    for i in range(len(p0)-3):
+      j = i+3
+      p0[j] = lbounds[j] + np.random.random() * (hbounds[j]-lbounds[j])
 
   try:
     popt, pcov = spo.curve_fit(dcb, x, y, p0=p0, sigma=errors, bounds=bounds)
@@ -63,8 +67,12 @@ def chi2Fit(x, y, p0, errors, deviate=False):
     perr = np.sqrt(np.diag(pcov))
   except Exception as e:
     print(e)
-    #popt, perr, chi2 = chi2Fit(x, y, p0_copy, errors, deviate=True)
-    popt, perr = p0, np.zeros_like(p0)
+    if level < 10:
+      print("Trying again for %d time"%level)
+      popt, perr, chi2 = chi2Fit(x, y, p0_copy, errors, deviate=True, level=level+1)
+    else:
+      print(p0)
+      popt, perr = p0_copy, np.zeros_like(p0)
 
   chi2 = np.sum(np.power((y-dcb(x, *popt))/errors, 2)) / len(x)
 
@@ -124,18 +132,26 @@ def plotFitComparison(bin_centers, sumw, errors, fit_range, popt_nominal, popt_i
   plt.clf()
 
 def fitDCB(df, fit_range="auto", savepath=None, p0=None):
-  mean = df.Diphoton_mass.mean()
+  #mean = df.Diphoton_mass.mean()
+  mean = 125.0
   width = df.Diphoton_mass.quantile(0.5+0.67/2) - df.Diphoton_mass.quantile(0.5) #approx gauss width
+
+  if abs(mean-125) > 2:
+    mean = 125
+  if width > 2:
+    width = 2
+
   if fit_range == "auto":
     fit_range = [df.Diphoton_mass.mean()-3*width, df.Diphoton_mass.mean()+3*width] #fit in +-4 sigma range
 
   nbins = 50
-  N0 = df.weight.sum() / (width*np.sqrt(2*np.pi))
-  N0 = N0 * ((fit_range[1]-fit_range[0]) / nbins)
 
   bin_centers, sumw, errors = histogram(df, fit_range, nbins)
 
-  if p0 is None: p0 = [N0, mean, width, 1, 1, 1, 1]
+  if p0 is None:
+    N0 = df.weight.sum() / (width*np.sqrt(2*np.pi))
+    N0 = N0 * ((fit_range[1]-fit_range[0]) / nbins)
+    p0 = [N0, mean, width, 1, 1, 1, 1]
   popt, perr, chi2 = chi2Fit(bin_centers, sumw, p0, errors)
 
   if savepath != None:
