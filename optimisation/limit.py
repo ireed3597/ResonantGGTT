@@ -112,7 +112,9 @@ def gradNLL(l, bkg, pres, sr):
   dN_dl = -(1/l)*N + (1/l)*(b*np.exp(-l*b)-a*np.exp(-l*a)+d*np.exp(-l*d)-c*np.exp(-l*c))
   return np.mean(bkg.mass + dN_dl/N)
 
-def fitBkg(bkg, pres, sr, l_guess):
+def fitBkg(bkg, pres, sr, l_guess, counting_sr=None):
+  if counting_sr == None: counting_sr = sr
+
   #fit only in sidebands
   m = bkg.mass
   bkg = bkg[((m>pres[0])&(m<sr[0])) | ((m>sr[1])&(m<pres[1]))]
@@ -140,7 +142,7 @@ def fitBkg(bkg, pres, sr, l_guess):
   bkg_func = ExpFunc(N, norm, l_fit, l_up, l_down)
 
   #Number of bkg events in signal region found from fit
-  nbkg_sr = bkg_func.getNEventsInSR(sr)
+  nbkg_sr = bkg_func.getNEventsInSR(counting_sr)
 
   return bkg_func, nbkg_sr
 
@@ -156,11 +158,16 @@ def performFit(sig, bkg, pres=(100,180), sr=(120,130), l_guess=0.1):
   l_guess: An initial guess for the l parameter in the exponential fit
   """
 
+  if len(sig) > 0:
+    counting_sr = (sig.mass.quantile(0.16), sig.mass.quantile(1-0.16))
+  else:
+    counting_sr = sr
+  
   #background fit
-  bkg_func, nbkg_sr = fitBkg(bkg, pres, sr, l_guess)
+  bkg_func, nbkg_sr = fitBkg(bkg, pres, sr, l_guess, counting_sr)
 
   #just sum signal events in signal region
-  nsig_sr = sig.loc[(sig.mass>sr[0])&(sig.mass<sr[1]), "weight"].sum()
+  nsig_sr = sig.loc[(sig.mass>counting_sr[0])&(sig.mass<counting_sr[1]), "weight"].sum()
 
   return nsig_sr, nbkg_sr, bkg_func
 
@@ -175,7 +182,7 @@ def plotBkgFit(bkg, bkg_func, pres, sr, saveas="bkg_fit.png"):
 
   side_bands = (bin_centers<sr[0])|(bin_centers>sr[1])
   plt.errorbar(bin_centers[side_bands], n[side_bands], err[side_bands], fmt='o')
-  plt.plot(m, bkg_func(m), label=r"$N = %.1f \cdot $exp$(-(%.3f^{+%.3f}_{-%.3f})*m_{\gamma\gamma})$"%(bkg_func.N, bkg_func.l, bkg_func.l_up-bkg_func.l, bkg_func.l-bkg_func.l_down))
+  plt.plot(m, bkg_func(m), label=r"$N = %.1f \cdot $exp$(-(%.3f^{+%.3f}_{-%.3f})*m_{\gamma\gamma})$"%((bkg_func.N/bkg_func.norm(bkg_func.l)), bkg_func.l, bkg_func.l_up-bkg_func.l, bkg_func.l-bkg_func.l_down))
   lower, upper = bkg_func.getLowerUpper(m)
   plt.fill_between(m, lower, upper, color="yellow", alpha=0.5)
   plt.title("Background fit")
@@ -200,16 +207,50 @@ def AMS(s, b):
   AMS = np.sqrt(np.sum(AMS2)) #square root the sum (summing in quadrature)
   return AMS
 
-def formBoundariesGrid(low, high, step, nbounds, include_lower):
+# def formBoundariesGrid(bkg, low, high, step, nbounds, include_lower):
+#   """
+#   Create a list of all possible sets of boundaries given the lowest and highest allowed score and number of boundaries.
+#   If include_lower = True, then an additional category in included which always starts from score = 0.
+#   """
+#   poss_bounds = np.arange(low, high+step, step)
+#   # bkg_select = bkg[bkg.score >= low]
+#   # bkg_select.sort_values("score", inplace=True)
+#   # poss_bounds = np.array(bkg_select.score - 1e-6)
+#   #print(len(poss_bounds))
+
+#   grid = np.array(np.meshgrid(*[poss_bounds for i in range(nbounds)])).T.reshape(-1, nbounds)
+#   grid = grid[np.all(np.diff(grid) > 0, axis=1)] #only consider ordered sets of boundaries
+  
+#   grid = np.concatenate((grid, np.ones(len(grid)).reshape(-1, 1)), axis=1) #add 1 to end of every boundary set
+#   if include_lower: grid = np.concatenate((np.zeros(len(grid)).reshape(-1, 1), grid), axis=1) #add 0 to end of every boundary set
+
+#   return grid
+
+def formBoundariesGrid(bkg, low, high, step, nbounds, include_lower):
   """
   Create a list of all possible sets of boundaries given the lowest and highest allowed score and number of boundaries.
   If include_lower = True, then an additional category in included which always starts from score = 0.
   """
-  poss_bounds = np.arange(low, high+step, step)
+  bkg_select = bkg[bkg.score >= low]
+  bkg_select.sort_values("score", ascending=False, inplace=True)
+  print(bkg_select.score.iloc[-1])
+  #bkg_select = bkg_select.iloc[:50]
+  poss_bounds = np.arange(1, len(bkg_select), 1)
 
-  grid = np.array(np.meshgrid(*[poss_bounds for i in range(nbounds)])).T.reshape(-1, nbounds)
-  grid = grid[np.all(np.diff(grid) > 0, axis=1)] #only consider ordered sets of boundaries
-  
+  grid = [[i] for i in poss_bounds if i >= 9]
+  i=1
+  while i < nbounds:
+    extension = []
+    for bound in grid:
+      for j in poss_bounds:
+        if j - bound[-1] >= 10:
+          extension.append(bound+[j])
+    i += 1
+    grid = extension
+  grid = np.array(grid)[:,::-1]
+
+  grid = bkg_select.score.to_numpy()[grid] - 1e-8
+
   grid = np.concatenate((grid, np.ones(len(grid)).reshape(-1, 1)), axis=1) #add 1 to end of every boundary set
   if include_lower: grid = np.concatenate((np.zeros(len(grid)).reshape(-1, 1), grid), axis=1) #add 0 to end of every boundary set
 
@@ -243,7 +284,8 @@ def isValidBoundaries(bkg, sig, pres, sr, boundaries, threshold=10):
     nbkg = (select(bkg, pair) & sidebands).sum() #nbkg events in sidebands
     nsig = select(sig, pair).sum()
 
-    if (nbkg < 5) | (nsig < 5):
+    #if (nbkg < 10) | (nsig < 10):
+    if (nbkg < 10):
       known_invalid.append(pair)
       return False
     else:
@@ -261,6 +303,7 @@ def getBoundariesPerformance(bkg, sig, pres, sr, boundaries):
 
   for i in range(ncats):
     nsig, nbkg, bkg_func = performFit(select(sig, i), select(bkg, i), pres, sr)
+    if nbkg == 0: nbkg = 0.0001
     nsigs.append(nsig)
     nbkgs.append(nbkg)
 
@@ -272,12 +315,15 @@ def getBoundariesPerformance(bkg, sig, pres, sr, boundaries):
 def parallel(bkg, sig, pres, sr, boundaries):
   """Function to be run in parallel mode"""
   if isValidBoundaries(bkg, sig, pres, sr, boundaries):
-    return getBoundariesPerformance(bkg, sig, pres, sr, boundaries)
+   return getBoundariesPerformance(bkg, sig, pres, sr, boundaries)
   else:
-    return -1, -1
+   return -1, -1
 
 def optimiseBoundary(bkg, sig, pres=(100,150), sr=(120,130), low=0.05, high=1.0, step=0.01, nbounds=1, include_lower=False):
-  boundaries_grid = formBoundariesGrid(low, high, step, nbounds, include_lower)
+  bm = bkg.mass
+  sidebands = ((bm > pres[0]) & (bm < sr[0])) | ((bm > sr[1]) & (bm < pres[1]))
+
+  boundaries_grid = formBoundariesGrid(bkg[sidebands], low, high, step, nbounds, include_lower)
   valid_boundaries = []
   limits = []
   amss = []
@@ -286,27 +332,27 @@ def optimiseBoundary(bkg, sig, pres=(100,150), sr=(120,130), low=0.05, high=1.0,
   print("Number of boundaries in grid: %d"%n)
 
   """Parallel approach"""
-  # from concurrent import futures
-  # import os
-  # with futures.ProcessPoolExecutor() as executor:
-  #   iterables = [[bkg]*n, [sig]*n, [pres]*n, [sr]*n, boundaries_grid]
-  #   func = parallel
-  #   chunksize = int(n / (os.cpu_count() * 4))
-  #   if chunksize == 0: chunksize = 1
-  #   for boundaries, result in zip(boundaries_grid, executor.map(func, *iterables, chunksize=chunksize)):
-  #     if result[0] != -1:
-  #       valid_boundaries.append(boundaries)
-  #       limits.append(result[0])
-  #       amss.append(result[1])
-  """-----------------"""
+  from concurrent import futures
+  import os
+  with futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+    iterables = [[bkg]*n, [sig]*n, [pres]*n, [sr]*n, boundaries_grid]
+    func = parallel
+    chunksize = int(n / (os.cpu_count() * 4))
+    if chunksize == 0: chunksize = 1
+    for boundaries, result in zip(boundaries_grid, executor.map(func, *iterables, chunksize=chunksize)):
+      if result[0] != -1:
+        valid_boundaries.append(boundaries)
+        limits.append(result[0])
+        amss.append(result[1])
+  # """-----------------"""
 
   """Single core approach"""
-  for boundaries in tqdm(boundaries_grid):
-    if isValidBoundaries(bkg, sig, pres, sr, boundaries):
-      valid_boundaries.append(boundaries)
-      limit, ams = getBoundariesPerformance(bkg, sig, pres, sr, boundaries)
-      limits.append(limit)
-      amss.append(ams)
+  # for boundaries in tqdm(boundaries_grid):
+  #   if isValidBoundaries(bkg, sig, pres, sr, boundaries):
+  #     valid_boundaries.append(boundaries)
+  #     limit, ams = getBoundariesPerformance(bkg, sig, pres, sr, boundaries)
+  #     limits.append(limit)
+  #     amss.append(ams)
   """--------------------"""
 
   limits = np.array(limits)
@@ -315,6 +361,10 @@ def optimiseBoundary(bkg, sig, pres=(100,150), sr=(120,130), low=0.05, high=1.0,
   optimal_limit = limits.min()
   #optimal_boundaries = valid_boundaries[amss.argmax()]
   #optimal_limit = amss.max()
+
+  #select = lambda df, i: df[(df.score > optimal_boundaries[i]) & (df.score <= optimal_boundaries[i+1])]
+  #bkg_func, nbkg_sr = fitBkg(select(bkg, 1), pres, sr, 0.1)
+  #plotBkgFit(select(bkg, 1), bkg_func, (100,180), (120,130), "bkg_fits/bkg_fit.png")
   
   return optimal_limit, optimal_boundaries, valid_boundaries, limits, amss
 

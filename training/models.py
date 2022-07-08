@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
+import training.custom_modules as cm
+from torchviz import make_dot
 
 import xgboost as xgb
 
@@ -61,6 +63,9 @@ class BDT(Model):
 
   def predict_proba(self, X):
     return self.model.predict_proba(X)
+
+  def score(self, X, y, sample_weight=None):
+    return self.model.score(X, y, sample_weight)
 
 
 class ParamModel(Model):
@@ -183,6 +188,15 @@ class ParamNN(ParamModel):
         torch.nn.ELU()
       ]
       modules.extend(middle_layer)
+
+    # modules = [
+    #   cm.PassThroughLayer(self.n_features,self.hyperparams["n_nodes"],self.hyperparams["dropout"]),
+    #   torch.nn.Linear(self.hyperparams["n_nodes"],self.hyperparams["n_nodes"]),
+    #   torch.nn.Dropout(self.hyperparams["dropout"]),
+    #   torch.nn.ELU()
+    #   #cm.PassThroughLayer(self.hyperparams["n_nodes"],self.hyperparams["n_nodes"],self.hyperparams["dropout"]),
+    #   ]
+    
     last_layer = [
       torch.nn.Linear(self.hyperparams["n_nodes"],1),
       torch.nn.Flatten(0,1),
@@ -191,6 +205,9 @@ class ParamNN(ParamModel):
     modules.extend(last_layer)
     
     self.model = torch.nn.Sequential(*modules)
+
+  def outputONNX(self, batch):
+    print(torch.onnx.export(self.model, batch, "nn.onnx", ["Training features"], ["Score"]))
 
   def printParameters(self):
     for name, param in self.model.named_parameters():
@@ -205,15 +222,26 @@ class ParamNN(ParamModel):
   def MSELoss(self, input, target, weight):
     return torch.mean(weight * (input - target) ** 2)
 
-  def getTotLoss(self, X, y, w, batch_size):
+  def getTotLoss(self, X, y, w, batch_size=None, s=None):
     losses = []
     for batch_X, batch_y, batch_w in self.getBatches(X, y, w, batch_size):
       loss = self.BCELoss(self.model(batch_X), batch_y, batch_w)
       losses.append(loss.item())
     return sum(losses)
 
-  def getBatches(self, X, y, w, batch_size, shuffle=False, weighted=False, epoch_size=None):
+    # if s==None:
+    #   X_torch = torch.tensor(X, dtype=torch.float).reshape(-1, X.shape[1]).to(dev)
+    #   y_torch = torch.tensor(y, dtype=torch.float).to(dev)
+    #   w_torch = torch.tensor(w, dtype=torch.float).to(dev)
+    # else:
+    #   X_torch = torch.tensor(X[s], dtype=torch.float).reshape(-1, X.shape[1]).to(dev)
+    #   y_torch = torch.tensor(y[s], dtype=torch.float).to(dev)
+    #   w_torch = torch.tensor(w[s], dtype=torch.float).to(dev)
+    # return self.BCELoss(self.model(X_torch), y_torch, w_torch)
+
+  def getBatches(self, X, y, w, batch_size=None, shuffle=False, weighted=False, epoch_size=None):
     if epoch_size==None: epoch_size = len(X)
+    if batch_size==None: batch_size = len(X)
 
     if shuffle and not weighted:
       shuffle_ids = np.random.choice(len(X), epoch_size, replace=False)
@@ -221,7 +249,8 @@ class ParamNN(ParamModel):
       y_sh = y[shuffle_ids].copy()
       w_sh = w[shuffle_ids].copy()
     elif weighted:
-      weighted_ids = np.random.choice(len(X), epoch_size, replace=True, p=abs(w)/sum(abs(w)))
+      if (not hasattr(self, "normed_weights")) or (len(w) != len(self.normed_weights)): self.normed_weights = abs(w)/sum(abs(w))
+      weighted_ids = np.random.choice(len(X), epoch_size, replace=True, p=self.normed_weights)
       X_sh = X[weighted_ids].copy()
       y_sh = y[weighted_ids].copy()
       w_sh = w[weighted_ids].copy()
@@ -283,6 +312,13 @@ class ParamNN(ParamModel):
     #check to see if any mass points making good progress
     if n_epochs > self.hyperparams["grace_epochs"]:
       any_make_good_improvement = False
+
+      #first check the total loss improvement
+      best_loss = slosses.min()        
+      best_loss_before = slosses[:-self.hyperparams["grace_epochs"]].min()
+      if (best_loss_before-best_loss)/best_loss > self.hyperparams["tol"]:
+        any_make_good_improvement = True
+
       for i in range(len(losses[0])):
         best_loss = losses[:,i].min()        
         best_loss_before = losses[:,i][:-self.hyperparams["grace_epochs"]].min()
@@ -356,14 +392,15 @@ class ParamNN(ParamModel):
     self.model = torch.load("%s/%s.pt"%(self.outdir, self.model_save_name))
 
   def fit(self, X, y, w):
-    #assert self.has_test_samples
-    self.unique_combinations = np.unique(X[:,-self.n_params:], axis=0) #unique combinations of masses (MX and MY)
-
-    n_unique_bkg = sum(y==0) #number of bkg events before inflating
     X, y, w = self.inflateBkgWithMasses(X, y, w)
+
+    self.unique_combinations = np.unique(X[:,-self.n_params:], axis=0) #unique combinations of masses (MX and MY)
     
     #split samples into training and validation
     Xt, Xv, yt, yv, wt, wv = train_test_split(X, y, w, test_size=0.2, random_state=1)
+    assert len(np.unique(Xt[:,-self.n_params:], axis=0)) == len(self.unique_combinations)
+    assert len(np.unique(Xv[:,-self.n_params:], axis=0)) == len(self.unique_combinations)
+
     self.equaliseWeights(Xt, yt, wt)
     self.equaliseWeights(Xv, yv, wv)
     wv *= sum(wt) / sum(wv) #adjust weight of validation to allow comparison of losses
@@ -376,55 +413,65 @@ class ParamNN(ParamModel):
     print(">> Validation sample summary")
     self.printNumAndWeight(yv, wv)
 
+    print(">> Initialising optimiser and scheduler")
     optimizer = torch.optim.Adam(self.model.parameters(), lr=self.hyperparams["lr"])
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=self.hyperparams["gamma"])
 
     self.train_loss = []
     self.validation_loss = []
 
-    # if save_location != None:
-    #   os.makedirs(save_location, exist_ok=True)
+    print(">> Calculating epoch size")
+    epoch_size = min([int(sum(yt==0)/len(self.unique_combinations)), sum(yt==1)])*2 #epoch size is 2*nbkg or 2*nsig, whatever is smallest
+
+    #find indicies for each mass, useful for calculating loss later
+    print(">> Finding mass indicies")
+    t_idx = []
+    v_idx = []
+    for mass in self.unique_combinations:
+      t_idx.append((Xt[:,-self.n_params:]==mass).sum(axis=1) == self.n_params)
+      v_idx.append((Xv[:,-self.n_params:]==mass).sum(axis=1) == self.n_params)
 
     with tqdm(range(self.hyperparams["max_epochs"])) as t:
       for i_epoch in t:
-        for batch_X, batch_y, batch_w in tqdm(self.getBatches(Xt, yt, wt, self.hyperparams["batch_size"], shuffle=True, weighted=True, epoch_size=n_unique_bkg*2), leave=False):
+        self.model.train()
+        for batch_X, batch_y, batch_w in tqdm(self.getBatches(Xt, yt, wt, self.hyperparams["batch_size"], shuffle=True, weighted=True, epoch_size=epoch_size), leave=False):
+          optimizer.zero_grad()
           loss = self.BCELoss(self.model(batch_X), batch_y, batch_w)
           loss.backward()
           optimizer.step()
-          optimizer.zero_grad()
+        
+        self.model.eval()
+        with torch.no_grad():
+          tl = []
+          vl = []
+
+          #calculate loss over different masses
+          for i, mass in enumerate(self.unique_combinations):
+            s = t_idx[i]
+            tl.append(self.getTotLoss(Xt[s], yt[s], wt[s]) * len(Xt[s]))
+            s = v_idx[i]
+            vl.append(self.getTotLoss(Xv[s], yv[s], wv[s]) * len(Xv[s]))
+            # s = t_idx[i]
+            # tl.append(self.getTotLoss(Xt, yt, wt, s) * len(Xt[s]))
+            # s = v_idx[i]
+            # vl.append(self.getTotLoss(Xv, yv, wv, s) * len(Xv[s]))
           
-        tl = []
-        vl = []
+          self.train_loss.append(np.array(tl))
+          self.validation_loss.append(np.array(vl))
 
-        #calculate loss over different masses
-        # for mass in self.unique_combinations:
-        #   s = (Xt[:,-self.n_params:]==mass).sum(axis=1) == self.n_params #select a particular mass
-        #   tl.append(self.getTotLoss(Xt[s], yt[s], wt[s], 2**13))
-        #   s = (Xv[:,-self.n_params:]==mass).sum(axis=1) == self.n_params #select a particular mass
-        #   vl.append(self.getTotLoss(Xv[s], yv[s], wv[s], 2**13))
-        
-        #calculate loss over whole set only
-        tl_tot = self.getTotLoss(Xt, yt, wt, 2**13)
-        vl_tot = self.getTotLoss(Xv, yv, wv, 2**13)
-        tl = [tl_tot for m in self.unique_combinations]
-        vl = [vl_tot for m in self.unique_combinations]
-        
-        self.train_loss.append(np.array(tl))
-        self.validation_loss.append(np.array(vl))
+          t.set_postfix(train_loss=self.train_loss[-1].sum(), validation_loss=self.validation_loss[-1].sum(), gamma=scheduler.get_last_lr()[0])
+          
+          if self.outdir != None:
+            if self.validation_loss[-1].sum() == np.array(self.validation_loss).sum(axis=1).min(): #if best loss is current loss
+              self.saveModel()
 
-        t.set_postfix(train_loss=self.train_loss[-1].sum(), validation_loss=self.validation_loss[-1].sum(), gamma=scheduler.get_last_lr()[0])
-        
-        if self.outdir != None:
-          if self.validation_loss[-1].sum() == np.array(self.validation_loss).sum(axis=1).min(): #if best loss is current loss
-            self.saveModel()
+          if self.shouldSchedulerStep():
+            scheduler.step()
 
-        if self.shouldSchedulerStep():
-         scheduler.step()
+          #self.updateLossPlot(train_loss, test_loss, scheduler.get_last_lr()[0])
 
-        #self.updateLossPlot(train_loss, test_loss, scheduler.get_last_lr()[0])
-
-        if self.shouldEarlyStop():
-          break
+          if self.shouldEarlyStop():
+            break
 
     if self.outdir != None:
       print("Loading best model")
@@ -437,15 +484,21 @@ class ParamNN(ParamModel):
     print("Finished training")
 
   def predict_proba(self, X, batch_size=8192):
-    #find unique combinations of parameters (masses)
-    unique_combinations = np.unique(X[:,-self.n_params:], axis=0)
-    assert len(unique_combinations)==1, print("Expect only one combination of parameters (masses) when evaluating ParamBDT")
+    self.model.eval()
+    with torch.no_grad():
 
-    predictions = []
-    for i_picture in range(0, len(X), batch_size):
-      batch_X = X[i_picture:i_picture + batch_size]
-      X_torch = torch.tensor(batch_X, dtype=torch.float).reshape(-1, X.shape[1]).to(dev)
-      predictions.append(self.model(X_torch).to('cpu').detach().numpy())
-    all_predictions = np.concatenate(predictions)
+      #find unique combinations of parameters (masses)
+      unique_combinations = np.unique(X[:,-self.n_params:], axis=0)
+      assert len(unique_combinations)==1, print("Expect only one combination of parameters (masses) when evaluating ParamBDT")
 
-    return np.concatenate([(1-all_predictions)[:,np.newaxis], all_predictions[:,np.newaxis]], axis=1) #get into format expected by sklearn / xgboost
+      # predictions = []
+      # for i_picture in range(0, len(X), batch_size):
+      #   batch_X = X[i_picture:i_picture + batch_size]
+      #   X_torch = torch.tensor(batch_X, dtype=torch.float).reshape(-1, X.shape[1]).to(dev)
+      #   predictions.append(self.model(X_torch).to('cpu').detach().numpy())
+      # all_predictions = np.concatenate(predictions)
+
+      X_torch = torch.tensor(X, dtype=torch.float).reshape(-1, X.shape[1]).to(dev)
+      all_predictions = self.model(X_torch).to('cpu').detach().numpy()
+
+      return np.concatenate([(1-all_predictions)[:,np.newaxis], all_predictions[:,np.newaxis]], axis=1) #get into format expected by sklearn / xgboost

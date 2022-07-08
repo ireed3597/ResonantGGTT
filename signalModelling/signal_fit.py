@@ -50,7 +50,7 @@ def dcb(x, N, mean, sigma, beta1, m1, beta2, m2):
 
 def chi2Fit(x, y, p0, errors, deviate=False, level=0):
   lbounds = [0, 120, 0.5, 0.5, 0.01, 0.5, 0.01]
-  hbounds = [5, 130, 5, 4, 10, 4, 10]
+  hbounds = [5, 130, 5, 4, 20, 4, 20]
 
   bounds = (lbounds, hbounds)
 
@@ -120,14 +120,24 @@ def plotFit(bin_centers, sumw, errors, fit_range, popt, chi2, savepath):
 def plotFitComparison(bin_centers, sumw, errors, fit_range, popt_nominal, popt_interp, savepath, normed=False):
   plt.errorbar(bin_centers, sumw, errors, fmt="k.", capsize=2)
   x = np.linspace(fit_range[0], fit_range[1], 200)
-  plt.plot(x, dcb(x, *popt_nominal), label="Nominal fit")
 
+  chi2 = np.sum(np.power((sumw-dcb(bin_centers, *popt_nominal))/errors, 2)) / len(bin_centers)
+  #plt.text(max(x), max(sumw+errors), r"$\chi^2 / dof$=%.2f"%chi2, verticalalignment='top', horizontalalignment='right')
+  #plt.plot(x, dcb(x, *popt_nominal), label="Nominal fit")
+  plt.plot(x, dcb(x, *popt_nominal),     label="Nominal\n" r"$\chi^2 / dof$=%.2f"%chi2)
+  
   popt_interp_copy = popt_interp.copy()
   if normed: popt_interp_copy[0] *= spi.quad(dcb, fit_range[0], fit_range[1], args=tuple(popt_nominal), epsrel=0.001)[0] / spi.quad(dcb, fit_range[0], fit_range[1], args=tuple(popt_interp_copy), epsrel=0.001)[0]
-  plt.plot(x, dcb(x, *popt_interp_copy), label="Interpolated fit")
+  chi2 = np.sum(np.power((sumw-dcb(bin_centers, *popt_interp))/errors, 2)) / len(bin_centers)
+  #plt.text(max(x), max(sumw+errors)*0.9, r"$\chi^2 / dof$=%.2f"%chi2, verticalalignment='top', horizontalalignment='right')
+  #plt.plot(x, dcb(x, *popt_interp_copy), label="Interpolated fit")
+  plt.plot(x, dcb(x, *popt_interp_copy), label="Interpolated\n" r"$\chi^2 / dof$=%.2f"%chi2)
+  
   plt.xlabel(r"$m_{\gamma\gamma}$")
 
-  plt.legend()
+  #plt.ylim(0, max(sumw+errors)*1.2)
+
+  plt.legend(loc="upper left")
   plt.savefig(savepath)
   plt.clf()
 

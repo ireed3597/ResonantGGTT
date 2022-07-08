@@ -35,7 +35,9 @@ def getNTransformedFeatures(df, train_features):
   num, cat = autoDetermineFeatureTypes(df, train_features)
   n_features = len(num)
   for feat in cat:
+    print(feat, np.unique(df[feat]))
     n_features += len(np.unique(df[feat]))
+  print(n_features)
   return n_features
 
 class Transformer:

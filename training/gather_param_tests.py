@@ -5,20 +5,43 @@ import pandas as pd
 import tabulate
 import common
 import numpy as np
+import warnings
 
-def getAUCScore(path, sig_proc):
-  if os.path.exists(os.path.join(path, sig_proc, "ROC_skimmed.json")):
+from misc.AUC_to_sig_eff import getSigEff
+
+def getAUCScore(path, sig_proc, bkg_eff=0):
+  if "cv_fold_1" in os.listdir(path):
+    scores = [getAUCScore(os.path.join(path, cv_fold), sig_proc, bkg_eff) for cv_fold in os.listdir(path) if os.path.isdir(os.path.join(path, cv_fold))]
+    scores = [score for score in scores if score != 0]
+    if len(scores) == 0: return 0
+    else:               return sum(scores) / len(scores)
+
+  if bkg_eff == 0:
     ROC_path = "ROC_skimmed.json"
   else:
     ROC_path = "ROC.json"
 
   try:
     with open(os.path.join(path, sig_proc, ROC_path), "r") as f:
-      auc = json.load(f)["test_auc"]
+      roc = json.load(f)
   except:
-    auc = 0
-  
-  return auc
+    print("Could not find auc score... returning auc=0")
+    print(path, sig_proc, ROC_path)
+    roc = 0
+
+  if roc == 0: 
+    return 0
+  else:
+    if bkg_eff == 0:
+      return roc["test_auc"]
+    else:
+      return getSigEff(roc, bkg_eff)
+
+def getSigProcs(path):
+  walk_results = [each for each in os.walk(path)][::-1]
+  for root, d_names, f_names in walk_results:
+    if d_names != []:
+      return d_names
 
 def getGoodnessScores(results):
   """
@@ -46,7 +69,7 @@ def getGoodnessScores(results):
 
   return scores
 
-def gatherExperimentResults(path):
+def gatherExperimentResults(path, bkg_eff):
   all_path = os.path.join(path, "all")
   only_path = os.path.join(path, "only")
   skip_path = os.path.join(path, "skip")
@@ -58,12 +81,13 @@ def gatherExperimentResults(path):
     only_path = path
     skip_path = path
 
-  sig_procs = list(filter(lambda x: os.path.isdir(os.path.join(all_path, x)), os.listdir(all_path)))
+  #sig_procs = list(filter(lambda x: os.path.isdir(os.path.join(all_path, x)), os.listdir(all_path)))
+  sig_procs = getSigProcs(path)
 
   results = {}
-  results["all"] = [getAUCScore(all_path, sig_proc) for sig_proc in sig_procs]
-  results["only"] = [getAUCScore(only_path, sig_proc) for sig_proc in sig_procs]
-  results["skip"] = [getAUCScore(skip_path, sig_proc) for sig_proc in sig_procs]
+  results["all"] = [getAUCScore(all_path, sig_proc, bkg_eff) for sig_proc in sig_procs]
+  results["only"] = [getAUCScore(only_path, sig_proc, bkg_eff) for sig_proc in sig_procs]
+  results["skip"] = [getAUCScore(skip_path, sig_proc, bkg_eff) for sig_proc in sig_procs]
 
   results = pd.DataFrame(results, index=sig_procs)
   results["MX"] = 0
@@ -117,7 +141,7 @@ def findBest(results, name, args):
 
 def main(args):
   if not os.path.exists(os.path.join(args.outdir, "experiment_0")):
-    results = [gatherExperimentResults(args.outdir)]
+    results = [gatherExperimentResults(args.outdir, args.bkgEff)]
   else:
     results = []
 
@@ -125,7 +149,7 @@ def main(args):
     directories = ["experiment_%d"%i for i in range(max(exp_nums)+1)]
     for directory in directories:
       print(directory)
-      results.append(gatherExperimentResults(os.path.join(args.outdir, directory)))
+      results.append(gatherExperimentResults(os.path.join(args.outdir, directory), args.bkgEff))
 
   for i, each in enumerate(results):
     table = tabulate.tabulate(each.T, headers='keys', floatfmt=".4f")
@@ -143,6 +167,7 @@ def main(args):
 if __name__=="__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--outdir', '-o', type=str, required=True)
+  parser.add_argument('--bkgEff', type=float, default=0)
 
   args = parser.parse_args()
 

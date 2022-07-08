@@ -1,4 +1,3 @@
-from tempfile import TemporaryFile
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -133,7 +132,8 @@ def getSigLabel(sig_proc):
     X_mass = int(sig_proc.split("M")[1].split("_")[0])
     label = r"$X_{%d} \rightarrow HH \rightarrow \gamma\gamma\tau\tau$"%X_mass
   else:
-    label = sig_proc
+    label = r"$m_X=%d$"%int(sig_proc.split("M")[1])
+    #label = sig_proc
   return label
 
 def adjustLimits(x, ys, ax):
@@ -199,7 +199,7 @@ def plot_feature(data, bkg, sig, proc_dict, sig_procs, column, nbins, feature_ra
   axs[1].set_ylabel("Data / MC")
 
   plt.sca(axs[0])
-  mplhep.cms.label(llabel="Work in Progress", data=True, lumi=59, loc=0)
+  mplhep.cms.label(llabel="Work in Progress", data=True, lumi=138, loc=0)
 
   for sig_proc in sig_procs:
     try: _ = [b.remove() for b in bars]
@@ -225,6 +225,33 @@ def plot_feature(data, bkg, sig, proc_dict, sig_procs, column, nbins, feature_ra
     if auto_legend: adjustLimits(bin_centres, [sig_hist*sig_sf, data_hist], axs[0])
     plt.savefig("%s_%s_log.png"%(save_path, sig_proc))
     #plt.savefig("%s_log.pdf"%save_path)
+
+  # for sig_proc in sig_procs:
+  #   print(sig_proc)
+  #   #try: _ = [b.remove() for b in bars]
+  #   #except: pass
+  #   sig_hist, edges = np.histogram(sig[sig.process_id==proc_dict[sig_proc]][column], bins=nbins, range=feature_range, weights=sig[sig.process_id==proc_dict[sig_proc]]["weight"])
+  #   sig_sf = data_hist.max() / sig_hist.max()
+  #   #counts, bins, bars = axs[0].hist(edges[:-1], edges, weights=sig_hist*sig_sf, label=getSigLabel(sig_proc), histtype='step', lw=3, zorder=9) #signal
+  #   axs[0].hist(edges[:-1], edges, weights=sig_hist*sig_sf, label=getSigLabel(sig_proc), histtype='step', lw=3, zorder=9) #signal
+
+  # if not auto_legend: axs[0].legend()
+  
+  # axs[0].set_yscale("linear")
+  # axs[0].relim()
+  # axs[0].autoscale()
+  # axs[0].get_ylim()
+  # if auto_legend: adjustLimits(bin_centres, [sig_hist*sig_sf, data_hist], axs[0])
+  # plt.savefig("%s_%s.png"%(save_path, sig_proc))
+  # #plt.savefig("%s.pdf"%save_path)
+
+  # axs[0].set_yscale("log")
+  # axs[0].relim()
+  # axs[0].autoscale()
+  # axs[0].get_ylim()
+  # if auto_legend: adjustLimits(bin_centres, [sig_hist*sig_sf, data_hist], axs[0])
+  # plt.savefig("%s_%s_log.png"%(save_path, sig_proc))
+  # #plt.savefig("%s_log.pdf"%save_path)
 
   plt.close()
 

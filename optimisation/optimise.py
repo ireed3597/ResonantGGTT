@@ -30,16 +30,12 @@ def main(args):
 
   optimal_limit = round(optimal_limit, 4)
   for i in range(len(optimal_boundaries)):
-    optimal_boundaries[i] = round(optimal_boundaries[i], 4)
+    optimal_boundaries[i] = round(optimal_boundaries[i], 10)
 
-  print(optimal_limit, ams[np.argmin(limits)], optimal_boundaries)
 
-  compare = [0.0, 0.9955, 0.999, 1.0]
-  # c = compare[1]*compare[2]*compare[3]
-  # for i, bounds in enumerate(boundaries):
-  #   if bounds[1]*bounds[2]*bounds[3] == c:
-  #     print(bounds)
-  #     print(limits[i])
+  print(optimal_limit, ams[np.argmin(limits)], list(optimal_boundaries))
+
+  compare = [0.0, 0.996574, 0.998256, 1.0]
   print(getBoundariesPerformance(bkg_to_optim, sig_to_optim, args.pres, args.sr, compare))
 
   select = lambda df, pair: (df.score > pair[0]) & (df.score <= pair[1])
@@ -48,8 +44,7 @@ def main(args):
   sr = (bm > args.sr[0]) & (bm < args.sr[1])
   for i in range(len(optimal_boundaries)-1):
     nbkg_in_sidebands = sum(sidebands & select(bkg_to_optim, [optimal_boundaries[i], optimal_boundaries[i+1]]))
-    nbkg_in_sr = sum(sr & select(bkg_to_optim, [optimal_boundaries[i], optimal_boundaries[i+1]]))
-    print(optimal_boundaries[i], optimal_boundaries[i+1], nbkg_in_sidebands, nbkg_in_sr)
+    print(optimal_boundaries[i], optimal_boundaries[i+1], nbkg_in_sidebands)
 
   results = {}
   results["sig_proc"] = args.sig_proc

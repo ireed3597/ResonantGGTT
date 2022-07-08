@@ -16,13 +16,15 @@ from plotting.plot_input_features import plot_feature
 from training.auc import getAUC
 
 def plotOutputScore(data, sig, bkg, proc_dict, sig_proc, savein):
-  bkg_rw = bkg.copy()
-  bkg_rw.loc[:, "weight"] *= data.loc[:, "weight"].sum() / bkg_rw.loc[:, "weight"].sum()
+  #bkg_rw = bkg.copy()
+  #bkg_rw.loc[:, "weight"] *= data.loc[:, "weight"].sum() / bkg_rw.loc[:, "weight"].sum()
 
   for column in data.columns:
     if ("score" in column) & (sig_proc in column):
       plot_feature(data, bkg, sig, proc_dict, sig_proc, column, 50, (0,1), os.path.join(savein, column))
-      plot_feature(data, bkg_rw, sig, proc_dict, sig_proc, column, 50, (0,1), os.path.join(savein, column+"_bkg_normed"))
+      plot_feature(data, bkg, sig, proc_dict, sig_proc, column, 50, (0.99,1), os.path.join(savein, column+"_zoom"))
+      plot_feature(data, bkg, sig, proc_dict, sig_proc, column, 50, (0.999,1), os.path.join(savein, column+"_zoom2"))
+      #plot_feature(data, bkg_rw, sig, proc_dict, sig_proc, column, 50, (0,1), os.path.join(savein, column+"_bkg_normed"))
 
 def plotROC(train_fpr, train_tpr, test_fpr, test_tpr, savein):
   #train_auc = np.trapz(train_tpr, train_fpr)

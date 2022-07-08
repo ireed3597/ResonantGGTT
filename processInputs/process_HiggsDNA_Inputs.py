@@ -166,6 +166,10 @@ def add_ditau_phi(df):
   ditau_py = tau1_py + tau2_py
   df["ditau_phi"] = np.arctan2(ditau_py, ditau_px)
 
+def dividePhotonPT(df):
+  df["LeadPhoton_pt_mgg"] = df["LeadPhoton_pt"] / df["Diphoton_mass"]
+  df["SubleadPhoton_pt_mgg"] = df["SubleadPhoton_pt"] / df["Diphoton_mass"]
+
 def main(args):
   if not args.test:
     df = pd.read_parquet(args.parquet_input)
@@ -192,6 +196,7 @@ def main(args):
   add_ditau_phi(df)
   add_MET_variables(df)
   add_Deltas(df)
+  dividePhotonPT(df)
   mass_variables.add_reco_MX(df)  
   mass_variables.add_reco_MX_met4(df)
   mass_variables.add_Mggt(df)
@@ -214,7 +219,6 @@ if __name__=="__main__":
   parser.add_argument('--parquet-input', '-i', type=str, required=True)
   parser.add_argument('--parquet-output', '-o', type=str, required=True)
   parser.add_argument('--summary-input', '-s', type=str, required=True)
-
   parser.add_argument('--test', action="store_true", default=False)
 
   args = parser.parse_args()

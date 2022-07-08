@@ -36,19 +36,16 @@ def fitSignalModels(df, nominal_masses, outdir):
   perrs = []
   for m in nominal_masses:
     print(m)
-    popt, perr = fitDCB(df[df.MX==m], fit_range=[120,130], savepath=os.path.join(outdir, "mx_%d.png"%m))
+    if len(df) > 10:
+      popt, perr = fitDCB(df[df.MX==m], fit_range=[120,130], savepath=os.path.join(outdir, "mx_%d.png"%m))
+    else:
+      popt, perr = popts[-1], perrs[-1]
     popts.append(popt)
     perrs.append(perr)
   popts = np.array(popts)
   perrs = np.array(perrs)
 
   return popts, perrs
-
-lumi_table = {
-  2016: 35.9,
-  2017: 41.5,
-  2018: 59.8
-}
 
 def deriveModels(original_df, nominal_masses, masses, original_outdir):
   for year in np.unique(original_df.year):
@@ -60,7 +57,9 @@ def deriveModels(original_df, nominal_masses, masses, original_outdir):
       outdir = os.path.join(original_outdir, str(year), str(SR))
       os.makedirs(outdir, exist_ok=True)
 
-      norms_nominal = np.array([df.loc[(df.MX==m), "weight"].sum()/lumi_table[year] for m in nominal_masses])
+      norms_nominal = np.array([df.loc[(df.MX==m), "weight"].sum()/common.lumi_table[year] for m in nominal_masses])
+      N = np.array([sum(df.MX==m) for m in nominal_masses])
+      norms_nominal_errors = norms_nominal / np.sqrt(N)
       norm_spline = spi.interp1d(nominal_masses, norms_nominal, kind='linear')
       norms = np.array([float(norm_spline(m)) for m in masses])
 
@@ -71,7 +70,8 @@ def deriveModels(original_df, nominal_masses, masses, original_outdir):
 
       print("Plotting interpolation")
       popts_n = np.concatenate([popts, norms_nominal[:,np.newaxis]], axis=1)
-      perrs_n  = np.concatenate([perrs, np.zeros_like(norms_nominal)[:,np.newaxis]], axis=1)
+      #perrs_n  = np.concatenate([perrs, np.zeros_like(norms_nominal)[:,np.newaxis]], axis=1)
+      perrs_n  = np.concatenate([perrs, norms_nominal_errors[:,np.newaxis]], axis=1)
       parameters_n = np.concatenate([parameters, norms[:,np.newaxis]], axis=1)
       plotInterpolation(nominal_masses, masses, popts_n, perrs_n, parameters_n, outdir)
 
@@ -98,18 +98,18 @@ def plotInterpolation(nominal_masses, masses, popts, perrs, parameters, outdir):
     plt.savefig(os.path.join(outdir, "p%d.png"%i))
     plt.clf()
 
-def plotSigFit(df, m, popts):
-  sumw, edges = np.histogram(df.Diphoton_mass, bins=nbins, range=fit_range, density=False, weights=df.weight)
-  N, edges = np.histogram(df.Diphoton_mass, bins=nbins, range=fit_range, density=False)
-  bin_centers = (edges[:-1] + edges[1:])/2
+# def plotSigFit(df, m, popts):
+#   sumw, edges = np.histogram(df.Diphoton_mass, bins=nbins, range=fit_range, density=False, weights=df.weight)
+#   N, edges = np.histogram(df.Diphoton_mass, bins=nbins, range=fit_range, density=False)
+#   bin_centers = (edges[:-1] + edges[1:])/2
   
-  errors = sumw / np.sqrt(N)
-  errors = np.nan_to_num(errors)
-  non_zero_indicies = np.arange(len(errors))[errors>0]
-  for i, lt in enumerate(errors<=0):
-    if lt:
-      closest_match = non_zero_indicies[np.argmin(np.abs(non_zero_indicies-i))]
-      errors[i] = errors[closest_match]
+#   errors = sumw / np.sqrt(N)
+#   errors = np.nan_to_num(errors)
+#   non_zero_indicies = np.arange(len(errors))[errors>0]
+#   for i, lt in enumerate(errors<=0):
+#     if lt:
+#       closest_match = non_zero_indicies[np.argmin(np.abs(non_zero_indicies-i))]
+#       errors[i] = errors[closest_match]
 
 def checkInterpolation(df, nominal_masses, m, popts, outdir):
   idx = np.where(nominal_masses==m)[0][0]
@@ -127,14 +127,29 @@ def checkInterpolation(df, nominal_masses, m, popts, outdir):
   signal_fit.plotFitComparison(bin_centers, sumw, errors, fit_range, popt_nominal, popt_interp, os.path.join(outdir, "mx_%d_interp_check.png"%m))
   signal_fit.plotFitComparison(bin_centers, sumw, errors, fit_range, popt_nominal, popt_interp, os.path.join(outdir, "mx_%d_interp_check_normed.png"%m), normed=True)
 
-def tagSignals(df, optim_results, proc_dict):
-  df["SR"] = -1
+# def tagSignals(df, optim_results, proc_dict):
+#   df["SR"] = -1
   
-  boundaries = optim_results["category_boundaries"][::-1] #so that cat0 is most pure
+#   boundaries = optim_results["category_boundaries"][::-1] #so that cat0 is most pure
 
+#   for proc in proc_dict.keys():
+#     if proc_dict[proc] in np.unique(df.process_id):
+#       score_name = "intermediate_transformed_score_%s"%proc
+
+#       for i in range(len(boundaries)-1):
+#         selection = (df[score_name] <= boundaries[i]) & (df[score_name] > boundaries[i+1]) & (df.process_id == proc_dict[proc])
+#         df.loc[selection, "SR"] = i
+
+#   return df[df.SR!=-1]
+
+def tagSignals(df, optim_dir, proc_dict):
+  df["SR"] = -1
   for proc in proc_dict.keys():
     if proc_dict[proc] in np.unique(df.process_id):
       score_name = "intermediate_transformed_score_%s"%proc
+
+      with open(os.path.join(optim_dir, proc, "optimisation_results.json"), "r") as f:
+        boundaries = json.load(f)["category_boundaries"][::-1]
 
       for i in range(len(boundaries)-1):
         selection = (df[score_name] <= boundaries[i]) & (df[score_name] > boundaries[i+1]) & (df.process_id == proc_dict[proc])
@@ -153,9 +168,10 @@ def main(args):
   masses = np.arange(df.MX.min(), df.MX.max()+args.step, args.step)
   print(masses)
 
-  with open(args.optim_results) as f:
-    optim_results = json.load(f)
-  tagSignals(df, optim_results, proc_dict)
+  # with open(args.optim_results) as f:
+  #   optim_results = json.load(f)
+  # tagSignals(df, optim_results, proc_dict)
+  tagSignals(df, args.optim_results, proc_dict)
 
   nominal_masses = np.sort(np.unique(df.MX))
   deriveModels(df, nominal_masses, masses, args.outdir)
