@@ -56,9 +56,10 @@ def chi2Fit(x, y, p0, errors, deviate=False, level=0):
 
   p0_copy = p0.copy()
   if deviate: 
-    #p0[1:] += np.random.normal(scale=0.1, size=len(p0)-1)
-    for i in range(len(p0)-3):
-      j = i+3
+    #for i in range(len(p0)-2):
+    #  j = i+2
+    #  p0[j] = lbounds[j] + np.random.random() * (hbounds[j]-lbounds[j])
+    for j in [3, 4, 5, 6]:
       p0[j] = lbounds[j] + np.random.random() * (hbounds[j]-lbounds[j])
 
   try:
@@ -161,8 +162,10 @@ def fitDCB(df, fit_range="auto", savepath=None, p0=None):
   if p0 is None:
     N0 = df.weight.sum() / (width*np.sqrt(2*np.pi))
     N0 = N0 * ((fit_range[1]-fit_range[0]) / nbins)
-    p0 = [N0, mean, width, 1, 1, 1, 1]
+    #p0 = [N0, mean, width, 2, 10, 2, 10]
+    p0 = [N0, mean, width, 1.2, 10, 1.2, 10]
   popt, perr, chi2 = chi2Fit(bin_centers, sumw, p0, errors)
+
 
   if savepath != None:
     plotFit(bin_centers, sumw, errors, fit_range, popt, chi2, savepath)

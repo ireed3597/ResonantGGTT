@@ -4,6 +4,7 @@ import numpy as np
 import json
 import common
 import mass_variables
+import sys
 
 dphi = lambda x, y: abs(x-y) - 2*(abs(x-y) - np.pi) * (abs(x-y) // np.pi)
 
@@ -170,13 +171,13 @@ def dividePhotonPT(df):
   df["LeadPhoton_pt_mgg"] = df["LeadPhoton_pt"] / df["Diphoton_mass"]
   df["SubleadPhoton_pt_mgg"] = df["SubleadPhoton_pt"] / df["Diphoton_mass"]
 
-def main(args):
-  if not args.test:
-    df = pd.read_parquet(args.parquet_input)
+def main(parquet_input, parquet_output, summary_input, do_test, keep_features):
+  if not do_test:
+    df = pd.read_parquet(parquet_input)
   else:
     from pyarrow.parquet import ParquetFile
     import pyarrow as pa
-    pf = ParquetFile(args.parquet_input) 
+    pf = ParquetFile(parquet_input) 
     iter = pf.iter_batches(batch_size = 10)
     first_ten_rows = next(iter) 
     df = pa.Table.from_batches([first_ten_rows]).to_pandas() 
@@ -186,7 +187,7 @@ def main(args):
   checkNans(df)
   checkInfs(df)
 
-  with open(args.summary_input, "r") as f:
+  with open(summary_input, "r") as f:
     proc_dict = json.load(f)["sample_id_map"]
 
   common.add_MX_MY(df, proc_dict)
@@ -211,7 +212,17 @@ def main(args):
   print("Additional columns:")
   print(set(df.columns).difference(original_columns))
 
-  df.to_parquet(args.parquet_output)
+  if keep_features != None:
+    keep_features = common.train_features[keep_features]
+    keep_features += list(filter(lambda x: "weight" in x, df.columns)) #add weights
+    keep_features += ["Diphton_mass", "MX", "MY", "event", "year", "category", "process_id"] #add other neccessary columns
+    keep_features = list(set(keep_features)) #remove overlap in columns
+    df = df[keep_features]
+
+  print("Final columns:")
+  print(df.columns)
+
+  df.to_parquet(parquet_output)
   return df
 
 if __name__=="__main__":
@@ -220,7 +231,12 @@ if __name__=="__main__":
   parser.add_argument('--parquet-output', '-o', type=str, required=True)
   parser.add_argument('--summary-input', '-s', type=str, required=True)
   parser.add_argument('--test', action="store_true", default=False)
+  parser.add_argument('--keep-features', '-f', type=str, default=None)
+  parser.add_argument('--batch', action="store_true")
 
   args = parser.parse_args()
 
-  df = main(args)
+  if args.batch:
+    common.submitToBatch([sys.argv[0]] + common.parserToList(args))
+  else:
+    main(args.parquet_input, args.parquet_output, args.summary_input, args.test, args.keep_features)

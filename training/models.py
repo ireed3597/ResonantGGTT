@@ -176,26 +176,27 @@ class ParamNN(ParamModel):
     else:
       self.hyperparams = hyperparams
     
-    modules = [
-      torch.nn.Linear(self.n_features,self.hyperparams["n_nodes"]),
-      torch.nn.Dropout(self.hyperparams["dropout"]),
-      torch.nn.ELU()
-      ]
-    for i in range(self.hyperparams["n_layers"]-1):
-      middle_layer = [
+    if self.hyperparams["pass_through"] == 0:
+      modules = [
+        torch.nn.Linear(self.n_features,self.hyperparams["n_nodes"]),
+        torch.nn.Dropout(self.hyperparams["dropout"]),
+        torch.nn.ELU()
+        ]
+      for i in range(self.hyperparams["n_layers"]-1):
+        middle_layer = [
+          torch.nn.Linear(self.hyperparams["n_nodes"],self.hyperparams["n_nodes"]),
+          torch.nn.Dropout(self.hyperparams["dropout"]),
+          torch.nn.ELU()
+        ]
+        modules.extend(middle_layer)
+    else:
+      modules = [
+        cm.PassThroughLayer(self.n_features,self.hyperparams["n_nodes"],self.hyperparams["dropout"]),
         torch.nn.Linear(self.hyperparams["n_nodes"],self.hyperparams["n_nodes"]),
         torch.nn.Dropout(self.hyperparams["dropout"]),
         torch.nn.ELU()
-      ]
-      modules.extend(middle_layer)
-
-    # modules = [
-    #   cm.PassThroughLayer(self.n_features,self.hyperparams["n_nodes"],self.hyperparams["dropout"]),
-    #   torch.nn.Linear(self.hyperparams["n_nodes"],self.hyperparams["n_nodes"]),
-    #   torch.nn.Dropout(self.hyperparams["dropout"]),
-    #   torch.nn.ELU()
-    #   #cm.PassThroughLayer(self.hyperparams["n_nodes"],self.hyperparams["n_nodes"],self.hyperparams["dropout"]),
-    #   ]
+        #cm.PassThroughLayer(self.hyperparams["n_nodes"],self.hyperparams["n_nodes"],self.hyperparams["dropout"]),
+        ]
     
     last_layer = [
       torch.nn.Linear(self.hyperparams["n_nodes"],1),
