@@ -1,9 +1,7 @@
-from matplotlib.pyplot import polar
 import pandas as pd
 import numpy as np
 
 import scipy.interpolate as spi
-import scipy.optimize as spo
 
 import argparse
 import os
@@ -13,9 +11,6 @@ import sys
 
 import tracemalloc
 
-from tqdm import tqdm
-
-import numba
 from numba import jit
 
 @jit(nopython=True)
@@ -179,10 +174,10 @@ def deriveSystematics(dfs, nominal_masses, masses, original_outdir):
   original_df = dfs["nominal"]
 
   yield_systematics = getYieldSystematicsNames(original_df)
-  #parquet_yield_systematics = ["JER", "JES", "MET_JER", "MET_JES", "MET_Unclustered", "Muon_pt", "Tau_pt"]
-  #parquet_shape_systematics = ["fnuf", "material", "scale", "smear"]
-  parquet_yield_systematics = []
-  parquet_shape_systematics = ["fnuf"]  
+  parquet_yield_systematics = ["JER", "JES", "MET_JER", "MET_JES", "MET_Unclustered", "Muon_pt", "Tau_pt"]
+  parquet_shape_systematics = ["fnuf", "material", "scale", "smear"]
+  #parquet_yield_systematics = []
+  #parquet_shape_systematics = ["fnuf"]  
 
   systematics = {}
   with open(os.path.join(original_outdir, "model.json"), "r") as f:
@@ -325,8 +320,8 @@ def loadDataFrames(args):
   tracemalloc.start()
 
   for path in os.listdir(args.parquet_input):
-    #if (".parquet" in path) and ("nominal" not in path):
-    if "fnuf" in path:
+    if (".parquet" in path) and ("nominal" not in path):
+    #if "fnuf" in path:
       print(path)
       print(np.array(tracemalloc.get_traced_memory())/(1024*1024*1024))
       df = loadDataFrame(os.path.join(args.parquet_input, path), proc_dict, args.optim_dir, columns=systematic_columns, batch_size=batch_size)

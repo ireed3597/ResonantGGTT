@@ -21,9 +21,9 @@ def plotOutputScore(data, sig, bkg, proc_dict, sig_proc, savein):
 
   for column in data.columns:
     if ("score" in column) & (sig_proc in column):
-      plot_feature(data, bkg, sig, proc_dict, sig_proc, column, 50, (0,1), os.path.join(savein, column))
-      plot_feature(data, bkg, sig, proc_dict, sig_proc, column, 50, (0.99,1), os.path.join(savein, column+"_zoom"))
-      plot_feature(data, bkg, sig, proc_dict, sig_proc, column, 50, (0.999,1), os.path.join(savein, column+"_zoom2"))
+      plot_feature(data, bkg, sig, proc_dict, sig_proc, column, 25, (0,1), os.path.join(savein, column))
+      plot_feature(data, bkg, sig, proc_dict, sig_proc, column, 25, (0.99,1), os.path.join(savein, column+"_zoom"))
+      #plot_feature(data, bkg, sig, proc_dict, sig_proc, column, 50, (0.999,1), os.path.join(savein, column+"_zoom2"))
       #plot_feature(data, bkg_rw, sig, proc_dict, sig_proc, column, 50, (0,1), os.path.join(savein, column+"_bkg_normed"))
 
 def plotROC(train_fpr, train_tpr, test_fpr, test_tpr, savein):
@@ -32,6 +32,15 @@ def plotROC(train_fpr, train_tpr, test_fpr, test_tpr, savein):
   train_auc = getAUC(train_fpr, train_tpr)
   test_auc = getAUC(test_fpr, test_tpr)
 
+  # wanted_fpr = np.linspace(0, 1, 1001) #save slices in roc curve
+  # save_package = {
+  #   "train_auc": train_auc,
+  #   "test_auc": test_auc,
+  #   "train_fpr": list(train_fpr[np.searchsorted(train_fpr, wanted_fpr)]),
+  #   "train_tpr": list(train_tpr[np.searchsorted(train_fpr, wanted_fpr)]),
+  #   "test_fpr": list(test_fpr[np.searchsorted(test_fpr, wanted_fpr)]),
+  #   "test_tpr": list(test_tpr[np.searchsorted(test_fpr, wanted_fpr)])
+  # }
   save_package = {
     "train_auc": train_auc,
     "test_auc": test_auc,
@@ -56,11 +65,11 @@ def plotROC(train_fpr, train_tpr, test_fpr, test_tpr, savein):
   plt.ylabel("True positive rate")
   plt.legend()
   plt.savefig(os.path.join(savein, "ROC.png"))
-  plt.xlim(left=0.1)
-  plt.ylim(bottom=min(test_tpr[test_fpr>0.1]), top=1+(1-min(test_tpr[test_fpr>0.1]))*0.1)
-  plt.savefig(os.path.join(savein, "ROC_zoom.png"))
-  plt.xscale("log")
-  plt.savefig(os.path.join(savein, "ROC_log.png"))
+  # plt.xlim(left=0.1)
+  # plt.ylim(bottom=min(test_tpr[test_fpr>0.1]), top=1+(1-min(test_tpr[test_fpr>0.1]))*0.1)
+  # plt.savefig(os.path.join(savein, "ROC_zoom.png"))
+  # plt.xscale("log")
+  # plt.savefig(os.path.join(savein, "ROC_log.png"))
   plt.clf()
 
 def plotLoss(train_loss, validation_loss, savein):

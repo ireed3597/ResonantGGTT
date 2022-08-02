@@ -2,6 +2,9 @@ from random import sample
 import numpy as np
 from sklearn.metrics import roc_curve
 
+from numba import jit
+
+@jit(nopython=True)
 def getAUC(fpr, tpr):
   """
   Calculate AUC score. Works for negative weights.
@@ -24,7 +27,7 @@ def getAUC(fpr, tpr):
   return np.trapz(fixed_tpr, fixed_fpr)
   
 if __name__=="__main__":
-  n=100000
+  n=1000000
   w_choice = [-100,-1,1,1]
 
   sig_score = np.random.random(size=n)**0.5
@@ -44,8 +47,8 @@ if __name__=="__main__":
   print("Just integrate: %.8f"%(np.trapz(tpr, fpr)))
   print("Skip negative parts: %.8f"%getAUC(fpr, tpr))
 
-  import matplotlib
-  matplotlib.use("Agg")
-  import matplotlib.pyplot as plt
-  plt.plot(fpr, tpr)
-  plt.savefig("auc_test.pdf")
+  # import matplotlib
+  # matplotlib.use("Agg")
+  # import matplotlib.pyplot as plt
+  # plt.plot(fpr, tpr)
+  # plt.savefig("auc_test.pdf")

@@ -19,11 +19,11 @@ import xgboost as xgb
 import tracemalloc
 get_memory = lambda: np.array(tracemalloc.get_traced_memory())/1024**3
 
-# print(torch.cuda.is_available())
-# if torch.cuda.is_available():  
-#   dev = "cuda:0" 
-# else:  
-#   dev = "cpu" 
+print(torch.cuda.is_available())
+if torch.cuda.is_available():  
+  dev = "cuda:0" 
+else:  
+  dev = "cpu" 
 
 def setSeed(seed):
   torch.manual_seed(seed)
@@ -224,7 +224,26 @@ class ParamNN(ParamModel):
   def BCELoss(self, input, target, weight, fit_var=None):
     x, y, w = input, target, weight
     log = lambda x: torch.log(x*(1-1e-8) + 1e-8)
-    return torch.mean(-w * (y*log(x) + (1-y)*log(1-x)))
+    loss = torch.mean(-w * (y*log(x) + (1-y)*log(1-x)))
+
+    if fit_var != None:
+      bkg_x, bkg_fit_var = x[y==0], fit_var[y==0]
+
+      # m = torch.mean(bkg_fit_var*bkg_x)
+      # a = torch.mean(torch.pow(bkg_fit_var*bkg_x-m, 4))
+      # b = torch.pow(torch.mean(torch.pow(bkg_fit_var*bkg_x-m, 2)),2)
+      # kurt = (a/b) - 3
+      # extra_loss = torch.exp(-kurt)
+
+      extra_loss = torch.abs(torch.mean(bkg_fit_var*bkg_x)-torch.mean(bkg_fit_var*(1-bkg_x))) / 10
+
+      #extra_loss = torch.mean(bkg_x)
+      assert extra_loss.grad_fn is not None
+      #print(loss, extra_loss)
+
+      #loss += extra_loss
+
+    return loss
 
   def MSELoss(self, input, target, weight):
     return torch.mean(weight * (input - target) ** 2)
@@ -236,7 +255,74 @@ class ParamNN(ParamModel):
       losses.append(loss.item())
     return sum(losses)
 
-  def getBatches(self, X, y, w, batch_size=None, shuffle=False, weighted=False, epoch_size=None):
+  # def getBatches(self, X, y, w, batch_size=None, shuffle=False, weighted=False, epoch_size=None):
+  #   if epoch_size==None: epoch_size = len(X)
+  #   if batch_size==None: batch_size = len(X)
+
+  #   if shuffle and not weighted:
+  #     shuffle_ids = np.random.choice(len(X), epoch_size, replace=False)
+  #     X_sh = X[shuffle_ids].copy()
+  #     y_sh = y[shuffle_ids].copy()
+  #     w_sh = w[shuffle_ids].copy()
+  #   elif weighted:
+  #     # if (not hasattr(self, "normed_weights")) or (len(w) != len(self.normed_weights)): self.normed_weights = abs(w)/sum(abs(w))
+  #     # weighted_ids = np.random.choice(len(X), epoch_size, replace=True, p=self.normed_weights)
+  #     # X_sh = X[weighted_ids].copy()
+  #     # y_sh = y[weighted_ids].copy()
+  #     # w_sh = w[weighted_ids].copy()
+  #     # w_sh[w_sh>0] = 1
+  #     # w_sh[w_sh<0] = -1
+
+  #     # if (not hasattr(self, "bkg_normed_weights")) or (len(w) != len(self.bkg_normed_weights)): self.bkg_normed_weights = abs(w[y==0])/sum(abs(w[y==0]))
+  #     # if (not hasattr(self, "sig_normed_weights")) or (len(w) != len(self.sig_normed_weights)): self.sig_normed_weights = abs(w[y==1])/sum(abs(w[y==1]))
+  #     if not hasattr(self, "bkg_normed_weights"):
+  #       self.bkg_ids = np.arange(0, len(X))[y==0]
+  #       self.sig_ids = np.arange(0, len(X))[y==1]
+
+  #       self.bkg_normed_weights = abs(w[self.bkg_ids])/sum(abs(w[self.bkg_ids]))
+  #       self.sig_normed_weights = abs(w[self.sig_ids])/sum(abs(w[self.sig_ids]))
+
+  #     epoch_size = int(epoch_size/batch_size) * batch_size
+
+  #     half = int(epoch_size/2)
+  #     bkg_weighted_ids = np.random.choice(self.bkg_ids, half, replace=True, p=self.bkg_normed_weights)
+  #     sig_weighted_ids = np.random.choice(self.sig_ids, half, replace=True, p=self.sig_normed_weights)
+
+  #     half_batch = int(batch_size/2)
+  #     bkg_placement = np.concatenate([np.arange(half_batch) + batch_size*i for i in range(int(half/half_batch))])
+  #     sig_placement = bkg_placement + half_batch
+
+  #     weighted_ids = np.zeros_like(y)
+  #     weighted_ids[bkg_placement] = bkg_weighted_ids
+  #     weighted_ids[sig_placement] = sig_weighted_ids
+      
+  #     X_sh = X[weighted_ids].copy()
+  #     y_sh = y[weighted_ids].copy()
+  #     w_sh = w[weighted_ids].copy()
+  #     w_sh[w_sh>0] = 1
+  #     w_sh[w_sh<0] = -1
+
+  #     #assign bkg mass
+  #     X_sh[bkg_placement,-self.n_params:] = X_sh[sig_placement,-self.n_params:]
+
+  #     self.fit_var_batch = self.fit_var
+  #   else:
+  #     X_sh = X.copy()
+  #     y_sh = y.copy()
+  #     w_sh = w.copy()  
+    
+  #   for i_picture in range(0, epoch_size, batch_size):
+  #     batch_X = X_sh[i_picture:i_picture + batch_size]
+  #     batch_y = y_sh[i_picture:i_picture + batch_size]
+  #     batch_w = w_sh[i_picture:i_picture + batch_size]
+    
+  #     X_torch = torch.tensor(batch_X, dtype=torch.float).reshape(-1, X.shape[1]).to(dev)
+  #     y_torch = torch.tensor(batch_y, dtype=torch.float).to(dev)
+  #     w_torch = torch.tensor(batch_w, dtype=torch.float).to(dev)
+
+  #     yield X_torch, y_torch, w_torch
+  
+  def getBatches(self, X, y, w, batch_size=None, shuffle=False, weighted=False, epoch_size=None, f=None):
     if epoch_size==None: epoch_size = len(X)
     if batch_size==None: batch_size = len(X)
 
@@ -245,7 +331,18 @@ class ParamNN(ParamModel):
       X_sh = X[shuffle_ids].copy()
       y_sh = y[shuffle_ids].copy()
       w_sh = w[shuffle_ids].copy()
+      if f is not None: f_sh = f[shuffle_ids].copy()
     elif weighted:
+      # if (not hasattr(self, "normed_weights")) or (len(w) != len(self.normed_weights)): self.normed_weights = abs(w)/sum(abs(w))
+      # weighted_ids = np.random.choice(len(X), epoch_size, replace=True, p=self.normed_weights)
+      # X_sh = X[weighted_ids].copy()
+      # y_sh = y[weighted_ids].copy()
+      # w_sh = w[weighted_ids].copy()
+      # w_sh[w_sh>0] = 1
+      # w_sh[w_sh<0] = -1
+
+      # if (not hasattr(self, "bkg_normed_weights")) or (len(w) != len(self.bkg_normed_weights)): self.bkg_normed_weights = abs(w[y==0])/sum(abs(w[y==0]))
+      # if (not hasattr(self, "sig_normed_weights")) or (len(w) != len(self.sig_normed_weights)): self.sig_normed_weights = abs(w[y==1])/sum(abs(w[y==1]))
       if not hasattr(self, "bkg_normed_weights"):
         self.bkg_ids = np.arange(0, len(X))[y==0]
         self.sig_ids = np.arange(0, len(X))[y==1]
@@ -270,26 +367,33 @@ class ParamNN(ParamModel):
       X_sh = X[weighted_ids].copy()
       y_sh = y[weighted_ids].copy()
       w_sh = w[weighted_ids].copy()
+      if f is not None: f_sh = f[weighted_ids].copy()
       w_sh[w_sh>0] = 1
       w_sh[w_sh<0] = -1
 
       #assign bkg mass
       X_sh[bkg_placement,-self.n_params:] = X_sh[sig_placement,-self.n_params:]
+
+      self.fit_var_batch = self.fit_var
     else:
       X_sh = X.copy()
       y_sh = y.copy()
       w_sh = w.copy()  
+      if f is not None: f_sh = f.copy()
     
     for i_picture in range(0, epoch_size, batch_size):
       batch_X = X_sh[i_picture:i_picture + batch_size]
       batch_y = y_sh[i_picture:i_picture + batch_size]
       batch_w = w_sh[i_picture:i_picture + batch_size]
+      if f is not None: batch_f = f_sh[i_picture:i_picture + batch_size]
     
-      X_torch = torch.as_tensor(batch_X).reshape(-1, X.shape[1])
-      y_torch = torch.as_tensor(batch_y)
-      w_torch = torch.as_tensor(batch_w)
+      X_torch = torch.tensor(batch_X, dtype=torch.float).reshape(-1, X.shape[1]).to(dev)
+      y_torch = torch.tensor(batch_y, dtype=torch.float).to(dev)
+      w_torch = torch.tensor(batch_w, dtype=torch.float).to(dev)
+      if f is not None: f_torch = torch.tensor(batch_f, dtype=torch.float).to(dev)
 
-      yield X_torch, y_torch, w_torch
+      if f is not None: yield X_torch, y_torch, w_torch, f_torch
+      else:             yield X_torch, y_torch, w_torch
   
   def shouldEarlyStop(self):
     """
@@ -398,10 +502,15 @@ class ParamNN(ParamModel):
   def setOutdir(self, outdir):
     self.outdir = outdir
 
+  def setFitVar(self, fit_var):
+    self.fit_var = fit_var
+
   def saveModel(self):
     if self.model_save_name != None:
       torch.save(self.model, "%s/%s.pt"%(self.outdir, self.model_save_name))
     else:
+      #existing_model_names = list(filter(lambda x: ".pt" in x, os.listdir(self.outdir)))
+      #self.model_save_name = "model_%d"%(len(existing_model_names))
       self.model_save_name = "model_%d"%int(self.train_loss[0].sum()*10**6) #something probably unique
       self.saveModel()
 
@@ -413,11 +522,13 @@ class ParamNN(ParamModel):
     X = self.shuffleBkg(X, y)
     y = y.to_numpy()
     w = w.to_numpy()
+    f = self.fit_var.to_numpy()
 
     self.unique_combinations = np.unique(X[:,-self.n_params:], axis=0) #unique combinations of masses (MX and MY)
     
     #split samples into training and validation
-    Xt, Xv, yt, yv, wt, wv = train_test_split(X, y, w, test_size=0.2, random_state=1)
+    #Xt, Xv, yt, yv, wt, wv = train_test_split(X, y, w, test_size=0.2, random_state=1)
+    Xt, Xv, yt, yv, wt, wv, ft, fv = train_test_split(X, y, w, f, test_size=0.2, random_state=1)
     assert len(np.unique(Xt[:,-self.n_params:], axis=0)) == len(self.unique_combinations)
     assert len(np.unique(Xv[:,-self.n_params:], axis=0)) == len(self.unique_combinations)
 
@@ -455,9 +566,11 @@ class ParamNN(ParamModel):
     with tqdm(range(self.hyperparams["max_epochs"])) as t:
       for i_epoch in t:
         self.model.train()
-        for batch_X, batch_y, batch_w in tqdm(self.getBatches(Xt, yt, wt, self.hyperparams["batch_size"], shuffle=True, weighted=True, epoch_size=epoch_size), leave=False):
+        #for batch_X, batch_y, batch_w in tqdm(self.getBatches(Xt, yt, wt, self.hyperparams["batch_size"], shuffle=True, weighted=True, epoch_size=epoch_size), leave=False):
+        for batch_X, batch_y, batch_w, batch_f in tqdm(self.getBatches(Xt, yt, wt, self.hyperparams["batch_size"], shuffle=True, weighted=True, epoch_size=epoch_size, f=ft), leave=False):
           optimizer.zero_grad()
-          loss = self.BCELoss(self.model(batch_X), batch_y, batch_w)
+          #loss = self.BCELoss(self.model(batch_X), batch_y, batch_w)
+          loss = self.BCELoss(self.model(batch_X), batch_y, batch_w, batch_f)
           loss.backward()
           optimizer.step()
         
@@ -500,40 +613,22 @@ class ParamNN(ParamModel):
 
     print("Finished training")
 
-  #predict ones mass at a time, works like the BDT would
-  # def predict_proba(self, X):
-  #   print("predicting...")
-  #   self.model.eval()
-  #   with torch.no_grad():
-  #     #find unique combinations of parameters (masses)
-  #     unique_combinations = np.unique(X[:,-self.n_params:], axis=0)
-  #     assert len(unique_combinations)==1, print("Expect only one combination of parameters (masses) when evaluating ParamNN")
-
-  #     X_torch = torch.as_tensor(X).reshape(-1, X.shape[1])
-  #     all_predictions = self.model(X_torch)
-      
-  #     concat = np.concatenate([(1-all_predictions)[:,np.newaxis], all_predictions[:,np.newaxis]], axis=1) #get into format expected by sklearn / xgboost
-  #   print("done")
-  #   return concat
-
-  #predicts for all masses
-  def predict_proba(self, X):
-    unique_combinations = np.unique(X[:,-self.n_params:], axis=0)
-    n_masses = len(unique_combinations)
-    masses = [X[0,-self.n_params:].copy()]
-    for i in range(1,len(X)):
-      if (X[i,-self.n_params:] == masses[0]).all(): break
-      else:                                         masses.append(X[i,-self.n_params:].copy())
-    assert (X[i:,-self.n_params:] == masses[0]).all(), print(X[i:,-self.n_params:])
-    assert len(masses)==len(unique_combinations), print("Expect the first %d entries to all have unique masses"%n_masses)
-
+  def predict_proba(self, X, batch_size=8192):
     self.model.eval()
     with torch.no_grad():
-      all_predictions = []
-      for mass in masses:
-        X[:,-self.n_params:] = mass
-        X_torch = torch.as_tensor(X).reshape(-1, X.shape[1])
-        predictions = self.model(X_torch)
-        all_predictions.append(np.concatenate([(1-predictions)[:,np.newaxis], predictions[:,np.newaxis]], axis=1)) #get into format expected by sklearn / xgboost
-    
-    return all_predictions
+
+      #find unique combinations of parameters (masses)
+      unique_combinations = np.unique(X[:,-self.n_params:], axis=0)
+      assert len(unique_combinations)==1, print("Expect only one combination of parameters (masses) when evaluating ParamBDT")
+
+      # predictions = []
+      # for i_picture in range(0, len(X), batch_size):
+      #   batch_X = X[i_picture:i_picture + batch_size]
+      #   X_torch = torch.tensor(batch_X, dtype=torch.float).reshape(-1, X.shape[1]).to(dev)
+      #   predictions.append(self.model(X_torch).to('cpu').detach().numpy())
+      # all_predictions = np.concatenate(predictions)
+
+      X_torch = torch.tensor(X, dtype=torch.float).reshape(-1, X.shape[1]).to(dev)
+      all_predictions = self.model(X_torch).to('cpu').detach().numpy()
+
+      return np.concatenate([(1-all_predictions)[:,np.newaxis], all_predictions[:,np.newaxis]], axis=1) #get into format expected by sklearn / xgboost

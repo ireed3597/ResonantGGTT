@@ -1,7 +1,14 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 cd /home/hep/mdk16/PhD/ggtt/ResonantGGTT
-source env/bin/activate
-export PYTHONPATH="${PYTHONPATH}:/home/hep/mdk16/PhD/ggtt/ResonantGGTT"
+source setup.sh
+file=$1
 
-python processInputs/process_HiggsDNA_Inputs.py -i /vols/cms/mdk16/ggtt/Inputs/HiggsDNA/pre/May22/merged_nominal.parquet -o test.parquet -s /vols/cms/mdk16/ggtt/Inputs/HiggsDNA/pre/May22/summary.json
+pushd /vols/cms/mdk16/ggtt/Inputs/HiggsDNA/pre/Jun22
+  folders=$(echo NMSSM_XYH_Y_gg_H_tautau_MX_*)
+  folders=($folders)
+  folder=${folders[$((SGE_TASK_ID-1))]}
+popd
+
+mkdir -p /vols/cms/mdk16/ggtt/Inputs/HiggsDNA/post/Jun22/NMSSM_Y_gg_reco_MX_mgg/${folder}
+python processInputs/process_HiggsDNA_Inputs.py -i /vols/cms/mdk16/ggtt/Inputs/HiggsDNA/pre/Jun22/${folder}/${file} -o /vols/cms/mdk16/ggtt/Inputs/HiggsDNA/post/Jun22/NMSSM_Y_gg_reco_MX_mgg/${folder}/${file} -s /vols/cms/mdk16/ggtt/Inputs/HiggsDNA/pre/Jun22/summary.json --keep-features important_17_corr

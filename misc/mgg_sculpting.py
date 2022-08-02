@@ -26,7 +26,7 @@ def plot_bkg(bkg, proc_dict, column, nbins, feature_range, save_path, auto_legen
   mplhep.cms.label(llabel="Work in Progress", data=True, lumi=138, loc=0)
 
   plt.legend()
-  plt.savefig("%s.pdf"%(save_path))
+  plt.savefig("%s.png"%(save_path))
   #plt.savefig("%s_log.png"%(save_path))
   plt.close()
 
@@ -34,14 +34,14 @@ df = pd.read_parquet(os.path.join(sys.argv[1],"merged_nominal.parquet"))
 with open(sys.argv[2], "r") as f:
   proc_dict = json.load(f)["sample_id_map"]
 
-bkg_ids = [proc_dict[proc] for proc in common.bkg_procs['all']]
+# bkg_ids = [proc_dict[proc] for proc in common.bkg_procs['all']]
+# df = df[df.process_id.isin(bkg_ids)]
+# gjet_ids = [proc_dict[proc] for proc in common.bkg_procs['GJets']]
+# df = df[~df.process_id.isin(gjet_ids)]
+# smhiggs_ids = [proc_dict[proc] for proc in common.bkg_procs['SM Higgs']]
+# df = df[~df.process_id.isin(smhiggs_ids)]
+bkg_ids = [proc_dict[proc] for proc in common.bkg_procs["Diphoton"]]
 df = df[df.process_id.isin(bkg_ids)]
-gjet_ids = [proc_dict[proc] for proc in common.bkg_procs['GJets']]
-df = df[~df.process_id.isin(gjet_ids)]
-smhiggs_ids = [proc_dict[proc] for proc in common.bkg_procs['SM Higgs']]
-df = df[~df.process_id.isin(smhiggs_ids)]
-
-plot_bkg(df, proc_dict, "Diphoton_mass", 10, [100,150], "mgg_sculpting/baseline")
 
 os.makedirs(os.path.join(sys.argv[1], "mgg_sculpting"), exist_ok=True)
 
@@ -49,14 +49,14 @@ first_col = True
 for column in df.columns:
   if "intermediate" in column:
     if first_col:
-      plot_bkg(df, proc_dict, "Diphoton_mass", 20, [100,150], os.path.join(sys.argv[1], "mgg_sculpting", "preselection"))
+      plot_bkg(df, proc_dict, "Diphoton_mass", 20, [90,150], os.path.join(sys.argv[1], "mgg_sculpting", "preselection"))
       first_col = False
 
-    df_cut = df[df[column] > 0.95]
-    plot_bkg(df_cut, proc_dict, "Diphoton_mass", 20, [100,150], os.path.join(sys.argv[1], "mgg_sculpting", "%s_high"%column))
+    df_cut = df[df[column] > 0.99]
+    plot_bkg(df_cut, proc_dict, "Diphoton_mass", 20, [90,150], os.path.join(sys.argv[1], "mgg_sculpting", "%s_high"%column))
 
-    df_cut = df[df[column] < 0.05]
-    plot_bkg(df_cut, proc_dict, "Diphoton_mass", 20, [100,150], os.path.join(sys.argv[1], "mgg_sculpting", "%s_low"%column))
+    df_cut = df[df[column] < 0.1]
+    plot_bkg(df_cut, proc_dict, "Diphoton_mass", 20, [90,150], os.path.join(sys.argv[1], "mgg_sculpting", "%s_low"%column))
 
 # for i in range(5):
 #   # if i==0:

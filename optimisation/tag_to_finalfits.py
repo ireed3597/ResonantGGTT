@@ -6,18 +6,6 @@ import os
 import uproot
 import common
 
-"""
-Given one set of category boundaries, for every mass point (including interpolated)
-I need to output a data root file and also a signal root file if the sig MC exists
-"""
-
-lumi_table = {
-  2016: 35.9,
-  2017: 41.5,
-  2018: 59.8
-}
-lumi_table["combined"] = lumi_table[2016] + lumi_table[2017] + lumi_table[2018] 
-
 def assignSignalRegions(df, optim_results, score_name):
   df["SR"] = -1
   
@@ -31,11 +19,15 @@ def writeOutputTree(mass, weight, process, cat_name, year, undo_lumi_scaling=Fal
   df = pd.DataFrame({"dZ": np.zeros(len(mass)), "CMS_hgg_mass": mass, "weight": weight})
   
   if undo_lumi_scaling:
-    df.loc[:,"weight"] /= lumi_table[year]
+    df.loc[:,"weight"] /= common.lumi_table[year]
   if scale_signal:
     df.loc[:,"weight"] /= 1000
 
-  print(process, cat_name, year, df.weight.sum())
+  print(process, cat_name, year)
+  print("  Sumw full mgg range: %d"%df.weight.sum())
+  print("  Sumw 100 < mgg < 180: %d"%df[(df.CMS_hgg_mass>=100)&(df.CMS_hgg_mass<=180)].weight.sum())
+  print("  Sumw 65 < mgg < 150: %d"%df[(df.CMS_hgg_mass>=65)&(df.CMS_hgg_mass<=150)].weight.sum())
+  #assert df[(df.CMS_hgg_mass>=65)&(df.CMS_hgg_mass<=150)].weight.sum() >= 10
 
   path = os.path.join(args.outdir, "outputTrees", str(year))
   os.makedirs(path, exist_ok=True)
@@ -49,40 +41,26 @@ def main(args):
   with open(args.summary_input, "r") as f:
     proc_dict = json.load(f)["sample_id_map"]
 
-  print(df[df.process_id == proc_dict["XToHHggTauTau_M300"]].weight.sum())
-  print(df[df.process_id == proc_dict["XToHHggTauTau_M300"]].weight.sum()/140)
+  #only have data, may need to change if doing res bkg
+  df = df[df.process_id == proc_dict["Data"]]
 
-  score_prefix = "intermediate_transformed_score_XToHHggTauTau_M"
-  masses = sorted([int(column[len(score_prefix):]) for column in df.columns if score_prefix in column])
+  for entry in optim_results:
+    MX, MY = common.get_MX_MY(entry["sig_proc"])
 
-  for m in masses:
-    score_name = score_prefix + str(m)
-    tagged_df = assignSignalRegions(df, optim_results, score_name)
-
+    tagged_df = assignSignalRegions(df, entry, entry["score"])
     data = tagged_df[tagged_df.process_id == proc_dict["Data"]]
-    if "XToHHggTauTau_M%d"%m in proc_dict.keys():
-      sig = tagged_df[tagged_df.process_id == proc_dict["XToHHggTauTau_M%d"%m]]
-    else:
-      sig = None
-    if args.injectSignal != "":
-      sig_inject = tagged_df[tagged_df.process_id == proc_dict[args.injectSignal]]
-      proc_name_inject = "gravitonm%d"%(common.get_MX_MY(args.injectSignal)[0])
-    else:
-      sig_inject = None
 
-    proc_name = "gravitonm%d"%m
-    mgg = 125
+    proc_name = "ggttresmx%dmy%d"%(MX, MY)
     years = data.year.unique()
 
     for i, year in enumerate(years):
-      for SR in tagged_df.SR.unique():
+      SRs = np.sort(tagged_df.SR.unique())
+      if args.dropLastCat: SRs = SRs[:-1]
+      for SR in SRs:
         if args.combineYears and (i==0):
           writeOutputTree(data[(data.SR==SR)].Diphoton_mass, data[(data.SR==SR)].weight, "Data", "%scat%d"%(proc_name, SR), "combined")
         elif not args.combineYears:
           writeOutputTree(data[(data.SR==SR)&(data.year==year)].Diphoton_mass, data[(data.SR==SR)&(data.year==year)].weight, "Data", "%scat%d"%(proc_name, SR), year)
-
-        if sig is not None:  writeOutputTree(sig[(sig.SR==SR)&(sig.year==year)].Diphoton_mass, sig[(sig.SR==SR)&(sig.year==year)].weight, "%s_%d_%d"%(proc_name, year, mgg), "%scat%d"%(proc_name, SR), year, undo_lumi_scaling=True, scale_signal=False)
-        if sig_inject is not None: writeOutputTree(sig_inject[(sig_inject.SR==SR)&(sig_inject.year==year)].Diphoton_mass, sig_inject[(sig_inject.SR==SR)&(sig_inject.year==year)].weight, "%s_%d_%d"%(proc_name, year, mgg), "%scat%d"%(proc_name, SR), year, undo_lumi_scaling=True, scale_signal=False)
 
 if __name__=="__main__":
   parser = argparse.ArgumentParser()
@@ -92,6 +70,7 @@ if __name__=="__main__":
   parser.add_argument('--outdir', '-o', type=str, required=True)
   parser.add_argument('--injectSignal', type=str, default="")
   parser.add_argument('--combineYears', action="store_true", help="Output data merged across years")
+  parser.add_argument('--dropLastCat', action="store_true")
   args = parser.parse_args()
   
   os.makedirs(args.outdir, exist_ok=True)

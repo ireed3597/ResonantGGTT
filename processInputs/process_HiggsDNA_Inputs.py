@@ -8,19 +8,11 @@ import sys
 
 dphi = lambda x, y: abs(x-y) - 2*(abs(x-y) - np.pi) * (abs(x-y) // np.pi)
 
-# def divide_pt_by_mgg(df):
-#   pt_columns = ["Diphoton_pt", "LeadPhoton_pt", "SubleadPhoton_pt"]
-#   for column in pt_columns:
-#     df.loc[:, column] /= df.Diphoton_mass
-#     df.rename({column:column+"_mgg"}, axis=1, inplace=True)
-
 def add_Deltas(df):
   df["Diphoton_deta"] = df.LeadPhoton_eta-df.SubleadPhoton_eta
-  #df["Diphoton_dphi"] = dphi(df.LeadPhoton_phi, df.SubleadPhoton_phi)
   df["Diphoton_dR"] = np.sqrt( dphi(df.LeadPhoton_phi, df.SubleadPhoton_phi)**2 + (df.LeadPhoton_eta-df.SubleadPhoton_eta)**2 )
 
   df["ditau_deta"] = df.lead_lepton_eta - df.sublead_lepton_eta
-  #df["ditau_dphi"] = dphi(df.lead_lepton_phi,df.sublead_lepton_phi)
   df.loc[df.category==8, "ditau_deta"] = common.dummy_val
   df.loc[df.category==8, "ditau_dphi"] = common.dummy_val
 
@@ -54,61 +46,23 @@ def add_Deltas(df):
   df.loc[df.category==8, "LeadPhoton_sublead_lepton_dR"] = common.dummy_val
   df.loc[df.category==8, "SubleadPhoton_sublead_lepton_dR"] = common.dummy_val
 
-# def add_helicity_angles(df):
-#   import vector
-#   Diphoton = vector.array({
-#     "pt": df.Diphoton_pt,
-#     "phi": df.Diphoton_phi,
-#     "eta": df.Diphoton_eta,
-#     "M": df.Diphoton_mass
-#   })
-#   Ditau = vector.array({
-#     "pt": df.ditau_pt,
-#     "phi": df.ditau_phi,
-#     "eta": df.ditau_eta,
-#     "M": df.ditau_mass
-#   })
-#   LeadPhoton = vector.array({
-#     "pt": df.LeadPhoton_pt,
-#     "phi": df.LeadPhoton_phi,
-#     "eta": df.LeadPhoton_eta,
-#     "M": df.LeadPhoton_mass
-#   })
-#   LeadTau = vector.array({
-#     "pt": df.ditau_lead_lepton_pt,
-#     "phi": df.ditau_lead_lepton_phi,
-#     "eta": df.ditau_lead_lepton_eta,
-#     "M": df.ditau_lead_lepton_mass
-#   })
-
-#   df["Diphoton_helicity_angle"] = np.cos(LeadPhoton.boost(-Diphoton).deltaangle(Diphoton))
-#   df["ditau_helicity_angle"] = np.cos(LeadTau.boost(-Ditau).deltaangle(Ditau))
-#   df["Diphoton_ditau_helicity_angle"] = np.cos(Ditau.boost(-(Diphoton+Ditau)).deltaangle(Diphoton+Ditau))
-
-#   #Colin Soper angle
-#   Dihiggs = Diphoton + Ditau
-#   #boost such that dihiggs pz = 0
-#   Dihiggs = Dihiggs.boostZ(beta=-Dihiggs.to_beta3().z)
-#   Diphoton = Diphoton.boostZ(beta=-Dihiggs.to_beta3().z)
-#   Ditau = Ditau.boostZ(beta=-Dihiggs.to_beta3().z)
-#   #boost such that dihiggs at rest
-#   Diphoton = Diphoton.boost(-Dihiggs)
-#   Ditau = Ditau.boost(-Dihiggs)
-#   df["Diphoton_ditau_Colin_Soper"] = np.cos(Ditau.deltaangle(Diphoton))
-
-#   df.loc[df.category==8, "ditau_helicity_angle"] = common.dummy_val
-#   df.loc[df.category==8, "Diphoton_ditau_helicity_angle"] = common.dummy_val
-#   df.loc[df.category==8, "Diphoton_ditau_Colin_Soper"] = common.dummy_val
-
 def add_MET_variables(df):
- # met_dphi variables already exist for diphoton and lead_lepton
- df["ditau_met_dPhi"] = dphi(df.MET_phi, df.ditau_phi)
- df["sublead_lepton_met_dPhi"] = dphi(df.MET_phi, df.sublead_lepton_phi)
- df.loc[df.category==8, "sublead_lepton_met_dPhi"] = common.dummy_val
+  # met_dphi variables already exist for diphoton and lead_lepton
+  df["ditau_met_dPhi"] = dphi(df.MET_phi, df.ditau_phi)
+  df.loc[df.category==8, "ditau_met_dPhi"] = common.dummy_val
+
+  df["sublead_lepton_met_dPhi"] = dphi(df.MET_phi, df.sublead_lepton_phi)
+  df.loc[df.category==8, "sublead_lepton_met_dPhi"] = common.dummy_val
 
 def applyPixelVeto(df):
   pixel_veto = (df.LeadPhoton_pixelSeed==0) & (df.SubleadPhoton_pixelSeed==0)
-  df.drop(df[~pixel_veto].index, inplace=True)
+  #df.drop(df[~pixel_veto].index, inplace=True)
+  return df[pixel_veto]
+
+def apply90WPID(df):
+  selection = (df.Diphoton_max_mvaID > -0.26) & (df.Diphoton_min_mvaID > -0.26)
+  #df.drop(df[~selection].index, inplace=True)
+  return df[selection]
 
 def reduceMemory(df):
   print(df.info())
@@ -166,10 +120,16 @@ def add_ditau_phi(df):
   ditau_px = tau1_px + tau2_px
   ditau_py = tau1_py + tau2_py
   df["ditau_phi"] = np.arctan2(ditau_py, ditau_px)
+  df.loc[df.category==8, "ditau_phi"] = common.dummy_val
 
 def dividePhotonPT(df):
   df["LeadPhoton_pt_mgg"] = df["LeadPhoton_pt"] / df["Diphoton_mass"]
   df["SubleadPhoton_pt_mgg"] = df["SubleadPhoton_pt"] / df["Diphoton_mass"]
+
+def prefiringWeights(df):
+  df.loc[:, "weight_L1_prefiring_sf_central"] = 1.0
+  df.loc[:, "weight_L1_prefiring_sf_up"] = 1.0
+  df.loc[:, "weight_L1_prefiring_sf_down"] = 1.0
 
 def main(parquet_input, parquet_output, summary_input, do_test, keep_features):
   if not do_test:
@@ -184,7 +144,15 @@ def main(parquet_input, parquet_output, summary_input, do_test, keep_features):
 
   original_columns = list(df.columns)
 
+  print(1)
+  df = applyPixelVeto(df)
+  df = apply90WPID(df)
+
+  print(2)
+  prefiringWeights(df)
+  print(2.2)
   checkNans(df)
+  print(2.3)
   checkInfs(df)
 
   with open(summary_input, "r") as f:
@@ -192,35 +160,46 @@ def main(parquet_input, parquet_output, summary_input, do_test, keep_features):
 
   common.add_MX_MY(df, proc_dict)
 
-  applyPixelVeto(df)
-
+  print(3)
   add_ditau_phi(df)
+  print(4)
   add_MET_variables(df)
+  print(5)
   add_Deltas(df)
+  print(6)
   dividePhotonPT(df)
+  print(7)
   mass_variables.add_reco_MX(df)  
   mass_variables.add_reco_MX_met4(df)
   mass_variables.add_Mggt(df)
   mass_variables.add_Mggt_met1(df)
   #add_helicity_angles(df)
   #divide_pt_by_mgg(df)
+  print(8)
   merge2016(df)
-
-  fixDtypes(df)
-  reduceMemory(df)
+  print(9)
 
   print("Additional columns:")
   print(set(df.columns).difference(original_columns))
 
+  print(10)
+  fixDtypes(df)
+
   if keep_features != None:
     keep_features = common.train_features[keep_features]
+    keep_features += list(filter(lambda x: "reco_" in x, df.columns)) #reco mass vars
     keep_features += list(filter(lambda x: "weight" in x, df.columns)) #add weights
-    keep_features += ["Diphton_mass", "MX", "MY", "event", "year", "category", "process_id"] #add other neccessary columns
+    keep_features += ["Diphoton_mass", "MX", "MY", "event", "year", "category", "process_id"] #add other neccessary columns
     keep_features = list(set(keep_features)) #remove overlap in columns
     df = df[keep_features]
 
+  print(11)
+  reduceMemory(df)
+
   print("Final columns:")
   print(df.columns)
+
+  print(12)
 
   df.to_parquet(parquet_output)
   return df

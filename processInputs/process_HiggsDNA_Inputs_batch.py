@@ -16,4 +16,4 @@ if __name__=="__main__":
     files = os.listdir(os.path.join(args.input_dir, folder))
     for f in files:
       options = "-i %s/%s/%s -o %s/%s/%s -s %s/summary.json -f %s --batch"%(args.input_dir,folder,f,  args.output_dir,folder,f,  args.input_dir,  args.keep_features)
-      common.submitToBatch(["processInputs/process_HiggsDNA_Inputs.py"] + options.split(" "))
+      common.submitToBatch(["processInputs/process_HiggsDNA_Inputs.py"] + options.split(" "), extra_memory=4)

@@ -30,7 +30,7 @@ def calculateExpectedCLs(mu, s, b):
 #def calculateExpectedLimit(s, b, rlow=0, rhigh=0.01, plot=False):
 def calculateExpectedLimit(s, b, rlow=0, rhigh=100.0, plot=False):
   if calculateExpectedCLs(rhigh, s, b) < 0.05:
-    return bisect(lambda x: calculateExpectedCLs(x, s, b)-0.05, rlow, rhigh, rtol=0.001)
+    return bisect(lambda x: calculateExpectedCLs(x, s, b)-0.05, rlow, rhigh, rtol=0.0001)
   else:
     warnings.warn("Limit above rhigh = %f"%rhigh)
     return rhigh
@@ -112,16 +112,29 @@ def gradNLL(l, bkg, pres, sr):
   dN_dl = -(1/l)*N + (1/l)*(b*np.exp(-l*b)-a*np.exp(-l*a)+d*np.exp(-l*d)-c*np.exp(-l*c))
   return np.mean(bkg.mass + dN_dl/N)
 
+def failedBkgFit(bkg, res, pres):
+  print("Nbkg = %f, l_fit = %f \n"%(bkg.weight.sum(), res.x[0]) + str(res))
+  plt.hist(bkg.mass, weights=bkg.weight, range=pres, bins=50)
+  plt.savefig("failed_bkg_fit.png")
+  plt.clf()
+
 def fitBkg(bkg, pres, sr, l_guess, counting_sr=None):
   if counting_sr == None: counting_sr = sr
+  if pres[0] > sr[0]: sr[0] = pres[0]
+  if pres[1] < sr[1]: sr[1] = pres[1]
+  assert sr[1]-sr[0] > 0
 
   #fit only in sidebands
   m = bkg.mass
-  bkg = bkg[((m>pres[0])&(m<sr[0])) | ((m>sr[1])&(m<pres[1]))]
+  bkg = bkg[((m>=pres[0])&(m<=pres[1])) & ~((m>=sr[0])&(m<=sr[1]))]
   
   norm = lambda l: (intExp(pres[0], sr[0], l) + intExp(sr[1], pres[1], l))
+
+  if len(bkg) == 0:
+    return ExpFunc(0, norm, l_guess, l_guess, l_guess), 0.0
+
   res = minimize(bkgNLL, l_guess, args=(bkg, pres, sr), jac=gradNLL)
-  assert res.success, "Nbkg = %f \n"%len(bkg) + str(res)
+  assert res.success, failedBkgFit(bkg, res, pres)
   l_fit = res.x[0]
   
   hess_inv = res.hess_inv[0][0]
@@ -237,7 +250,7 @@ def formBoundariesGrid(bkg, low, high, step, nbounds, include_lower):
   #bkg_select = bkg_select.iloc[:50]
   poss_bounds = np.arange(1, len(bkg_select), 1)
 
-  grid = [[i] for i in poss_bounds if i >= 9]
+  grid = [[i] for i in poss_bounds if i >= 10]
   i=1
   while i < nbounds:
     extension = []
@@ -332,27 +345,27 @@ def optimiseBoundary(bkg, sig, pres=(100,150), sr=(120,130), low=0.05, high=1.0,
   print("Number of boundaries in grid: %d"%n)
 
   """Parallel approach"""
-  from concurrent import futures
-  import os
-  with futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
-    iterables = [[bkg]*n, [sig]*n, [pres]*n, [sr]*n, boundaries_grid]
-    func = parallel
-    chunksize = int(n / (os.cpu_count() * 4))
-    if chunksize == 0: chunksize = 1
-    for boundaries, result in zip(boundaries_grid, executor.map(func, *iterables, chunksize=chunksize)):
-      if result[0] != -1:
-        valid_boundaries.append(boundaries)
-        limits.append(result[0])
-        amss.append(result[1])
-  # """-----------------"""
+  # from concurrent import futures
+  # import os
+  # with futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+  #   iterables = [[bkg]*n, [sig]*n, [pres]*n, [sr]*n, boundaries_grid]
+  #   func = parallel
+  #   chunksize = int(n / (os.cpu_count() * 4))
+  #   if chunksize == 0: chunksize = 1
+  #   for boundaries, result in zip(boundaries_grid, executor.map(func, *iterables, chunksize=chunksize)):
+  #     if result[0] != -1:
+  #       valid_boundaries.append(boundaries)
+  #       limits.append(result[0])
+  #       amss.append(result[1])
+  """-----------------"""
 
   """Single core approach"""
-  # for boundaries in tqdm(boundaries_grid):
-  #   if isValidBoundaries(bkg, sig, pres, sr, boundaries):
-  #     valid_boundaries.append(boundaries)
-  #     limit, ams = getBoundariesPerformance(bkg, sig, pres, sr, boundaries)
-  #     limits.append(limit)
-  #     amss.append(ams)
+  for boundaries in tqdm(boundaries_grid):
+    if isValidBoundaries(bkg, sig, pres, sr, boundaries):
+      valid_boundaries.append(boundaries)
+      limit, ams = getBoundariesPerformance(bkg, sig, pres, sr, boundaries)
+      limits.append(limit)
+      amss.append(ams)
   """--------------------"""
 
   limits = np.array(limits)

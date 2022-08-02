@@ -129,4 +129,10 @@ dmypy.json
 .pyre/
 
 # My additions
-.parquet
+*.parquet
+*.json
+*.png
+*.root
+*.model
+batch/
+*.pdf

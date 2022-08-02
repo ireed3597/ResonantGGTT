@@ -30,37 +30,11 @@ def dcb(x, N, mean, sigma, beta1, m1, beta2, m2):
 
   return left + middle + right
 
-# def dcb(x, N, mean, sigma, beta1, m1, beta2, m2):
-#   beta1, m1, beta2, m2 = np.abs(beta1), np.abs(m1), np.abs(beta2), np.abs(m2)
-
-#   #A1 = np.power(m1/beta1, m1) * np.exp(-beta1**2/2)
-#   B1 = m1/beta1 - beta1
-#   #A2 = np.power(m2/beta2, m2) * np.exp(-beta2**2/2)
-#   B2 = m2/beta2 - beta2
-
-#   xs = (x-mean)/sigma
-
-#   middle = N*np.exp(-xs**2/2)*(-beta1 < xs)*(xs < beta2)
-  
-#   left = np.nan_to_num( N * np.power((m1/beta1)/(B1-xs), m1) * np.exp(-beta1**2/2) * (xs<=-beta1) )
-#   right = np.nan_to_num( N * np.power((m2/beta2)/(B2+xs), m2) * np.exp(-beta2**2/2) * (xs>=beta2) )
-
-#   return left + middle + right
-
-
-def chi2Fit(x, y, p0, errors, deviate=False, level=0):
-  lbounds = [0, 120, 0.5, 0.5, 0.01, 0.5, 0.01]
-  hbounds = [5, 130, 5, 4, 20, 4, 20]
-
-  bounds = (lbounds, hbounds)
-
+def chi2Fit(x, y, p0, bounds, errors, deviate=False, level=0):
   p0_copy = p0.copy()
   if deviate: 
-    #for i in range(len(p0)-2):
-    #  j = i+2
-    #  p0[j] = lbounds[j] + np.random.random() * (hbounds[j]-lbounds[j])
     for j in [3, 4, 5, 6]:
-      p0[j] = lbounds[j] + np.random.random() * (hbounds[j]-lbounds[j])
+      p0[j] = bounds[0][j] + np.random.random() * (bounds[1][j]-bounds[0][j])
 
   try:
     popt, pcov = spo.curve_fit(dcb, x, y, p0=p0, sigma=errors, bounds=bounds)
@@ -70,7 +44,7 @@ def chi2Fit(x, y, p0, errors, deviate=False, level=0):
     print(e)
     if level < 10:
       print("Trying again for %d time"%level)
-      popt, perr, chi2 = chi2Fit(x, y, p0_copy, errors, deviate=True, level=level+1)
+      popt, perr, chi2 = chi2Fit(x, y, p0_copy, bounds, errors, deviate=True, level=level+1)
     else:
       print(p0)
       popt, perr = p0_copy, np.zeros_like(p0)
@@ -84,9 +58,6 @@ log_factorial = lambda n: n*np.log(n) - n + 0.5*np.log(2*np.pi*n)
 
 def NLL(k, l):
   return k*np.log(l) - l - log_factorial(k)
-
-# def NLLFit(x, y, p0):
-#   res = spo.minimize()
 
 def histogram(df, fit_range, nbins):
   sumw, edges = np.histogram(df.Diphoton_mass, bins=nbins, range=fit_range, density=False, weights=df.weight)
@@ -143,12 +114,14 @@ def plotFitComparison(bin_centers, sumw, errors, fit_range, popt_nominal, popt_i
   plt.clf()
 
 def fitDCB(df, fit_range="auto", savepath=None, p0=None):
+  my = sum(fit_range) / 2
+
   #mean = df.Diphoton_mass.mean()
-  mean = 125.0
+  mean = my
   width = df.Diphoton_mass.quantile(0.5+0.67/2) - df.Diphoton_mass.quantile(0.5) #approx gauss width
 
-  if abs(mean-125) > 2:
-    mean = 125
+  if abs(mean - my) > 2:
+    mean = my
   if width > 2:
     width = 2
 
@@ -164,8 +137,12 @@ def fitDCB(df, fit_range="auto", savepath=None, p0=None):
     N0 = N0 * ((fit_range[1]-fit_range[0]) / nbins)
     #p0 = [N0, mean, width, 2, 10, 2, 10]
     p0 = [N0, mean, width, 1.2, 10, 1.2, 10]
-  popt, perr, chi2 = chi2Fit(bin_centers, sumw, p0, errors)
 
+  lbounds = [0, my-5, 0.5, 0.5, 0.01, 0.5, 0.01]
+  hbounds = [5, my+5, 5, 4, 20, 4, 20]
+  bounds = (lbounds, hbounds)
+
+  popt, perr, chi2 = chi2Fit(bin_centers, sumw, p0, bounds, errors)
 
   if savepath != None:
     plotFit(bin_centers, sumw, errors, fit_range, popt, chi2, savepath)

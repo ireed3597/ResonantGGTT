@@ -8,6 +8,7 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder, FunctionTransfo
 
 import numpy as np
 import tracemalloc
+get_memory = lambda: np.array(tracemalloc.get_traced_memory())/1024**3
 
 import common
 
@@ -50,23 +51,22 @@ class Transformer:
     self.nan_to_zero = SimpleImputer(fill_value=0)
 
   def fit_transform(self, X, y, w):
-    print("fit transform 1", tracemalloc.get_traced_memory())
-    X.replace(common.dummy_val, np.nan)
+    print("fit transform 1", get_memory())
+    X.replace(common.dummy_val, np.nan, inplace=True)
 
     w[y==1] *= w[y==0].sum() / w[y==1].sum()
-    print("fit transform 2", tracemalloc.get_traced_memory())
+    print("fit transform 2", get_memory())
     X_numeric = self.scaler.fit_transform(X[self.numeric_features], sample_weight=w)
-    print("fit transform 3", tracemalloc.get_traced_memory())
+    print("fit transform 3", get_memory())
     X_numeric = self.nan_to_zero.fit_transform(X_numeric)
-    print("fit transform 4", tracemalloc.get_traced_memory())
+    print("fit transform 4", get_memory())
     X_categorical = self.onehot.fit_transform(X[self.categorical_features])
-    print("fit transform 5", tracemalloc.get_traced_memory())
+    print("fit transform 5", get_memory())
     return np.concatenate((X_categorical, X_numeric), axis=1).astype("float32")
     #return np.concatenate((X_categorical, X_numeric), axis=1)
 
-
   def transform(self, X, y=None):
-    X.replace(common.dummy_val, np.nan)
+    X.replace(common.dummy_val, np.nan, inplace=True)
 
     X_numeric = self.scaler.transform(X[self.numeric_features])
     X_numeric = self.nan_to_zero.transform(X_numeric)

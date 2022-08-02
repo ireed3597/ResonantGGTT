@@ -35,7 +35,7 @@ def main(args):
 
   print(optimal_limit, ams[np.argmin(limits)], list(optimal_boundaries))
 
-  compare = [0.0, 0.996574, 0.998256, 1.0]
+  compare = [0.0, 0.9972776671, 0.9991124856, 1.0]
   print(getBoundariesPerformance(bkg_to_optim, sig_to_optim, args.pres, args.sr, compare))
 
   select = lambda df, pair: (df.score > pair[0]) & (df.score <= pair[1])

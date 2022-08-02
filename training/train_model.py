@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import SelectFromModel
 from sklearn.model_selection import KFold
+import torch
 
 import argparse
 import json
@@ -31,6 +32,7 @@ import ast
 import itertools
 
 import tracemalloc
+get_memory = lambda: np.array(tracemalloc.get_traced_memory())/1024**3
 import copy
 import pickle
 
@@ -58,8 +60,8 @@ def loadDataFrame(args, train_features):
   
   reversed_proc_dict = {proc_dict[key]:key for key in proc_dict.keys()}
   for i in df.process_id.unique():
-    if i in needed_ids: print("> %s"%(reversed_proc_dict[i]).ljust(30), "kept")
-    else: print("> %s"%(reversed_proc_dict[i]).ljust(30), "removed")
+    if i in needed_ids: print("> %s"%(reversed_proc_dict[i]).ljust(40), "kept")
+    else: print("> %s"%(reversed_proc_dict[i]).ljust(40), "removed")
   df = df[df.process_id.isin(needed_ids)] #drop uneeded processes
 
   df["y"] = 0
@@ -76,12 +78,19 @@ def train_test_split_consistent(MC, test_size, random_state):
   train_dfs = []
   test_dfs = []
 
+  idx = np.arange(len(MC))
   for proc in MC.process_id.unique():
-    train_df, test_df = train_test_split(MC[MC.process_id==proc], test_size=test_size, random_state=random_state)
+    train_df, test_df = train_test_split(idx[MC.process_id==proc], test_size=test_size, random_state=random_state)
     train_dfs.append(train_df)
     test_dfs.append(test_df)
 
-  return pd.concat(train_dfs), pd.concat(test_dfs)
+  return MC.iloc[np.concatenate(train_dfs)], MC.iloc[np.concatenate(test_dfs)]
+
+  # for proc in MC.process_id.unique():
+  #   train_df, test_df = train_test_split(MC[MC.process_id==proc], test_size=test_size, random_state=random_state)
+  #   train_dfs.append(train_df)
+  #   test_dfs.append(test_df)
+  # return pd.concat(train_dfs), pd.concat(test_dfs)
 
 def cv_fold_consistent(args, train_df, test_df):
   train_dfs = []
@@ -102,103 +111,121 @@ def cv_fold_consistent(args, train_df, test_df):
 
   return pd.concat(train_dfs), pd.concat(test_dfs)
 
-def addScores(args, model, train_features, train_df, test_df, data, MX_to_eval=None):
+#should work with BDT or NN
+# def addScores(args, model, train_features, train_df, test_df, data, MX_MY_to_eval=None):
+#   pd.options.mode.chained_assignment = None
+
+#   if not args.parquetSystematic: dfs = [train_df, test_df, data]
+#   else:                          dfs = [train_df, test_df]
+
+#   #evaluate at nominal mass points
+#   if MX_MY_to_eval is None:
+#     MX_MY_to_eval = []
+#     for sig_proc in args.eval_sig_procs:
+#       MX, MY = common.get_MX_MY(sig_proc)
+#       MX_MY_to_eval.append([MX, MY])
+
+#   for MX, MY in MX_MY_to_eval:
+#     #sig_proc = "XToHHggTauTau_M%d"%MX
+#     sig_proc = "NMSSM_XYH_Y_gg_H_tautau_MX_%d_MY_%d"%(MX, MY)
+#     print(sig_proc, MX, MY)
+#     for df in dfs:
+#       df.loc[:, "MX"] = MX
+#       df.loc[:, "MY"] = MY
+#       df["score_%s"%sig_proc] = model.predict_proba(df[train_features])[:,1]
+      
+#       #df.loc[:, "score_%s"%sig_proc] = (df["score_%s"%sig_proc] - df["score_%s"%sig_proc].min()) #rescale so everything within 0 and 1
+#       #df.loc[:, "score_%s"%sig_proc] = (df["score_%s"%sig_proc] / df["score_%s"%sig_proc].max())
+#       assert (df["score_%s"%sig_proc] < 0).sum() == 0
+#       assert (df["score_%s"%sig_proc] > 1).sum() == 0
+
+#   pd.options.mode.chained_assignment = "warn"
+
+#specific to the paramNN, will not work with BDT
+def addScores(args, model, train_features, train_df, test_df, data, MX_MY_to_eval=None):
+  print(">> Adding scores (evaluating)")
   pd.options.mode.chained_assignment = None
 
   if not args.parquetSystematic: dfs = [train_df, test_df, data]
   else:                          dfs = [train_df, test_df]
 
-  if MX_to_eval is None:
-    MX_to_eval = []
+  #evaluate at nominal mass points
+  if MX_MY_to_eval is None:
+    MX_MY_to_eval = []
     for sig_proc in args.eval_sig_procs:
       MX, MY = common.get_MX_MY(sig_proc)
-      MX_to_eval.append(MX)
+      MX_MY_to_eval.append([MX, MY])
 
-  for MX in MX_to_eval:
-    MY = 125
-    sig_proc = "XToHHggTauTau_M%d"%MX
-    print(sig_proc, MX, MY)
+  for df in dfs:
+    df.loc[:, "MX"] = MX_MY_to_eval[0][0]
+    df.loc[:, "MY"] = MX_MY_to_eval[0][1]
+  for i, (MX, MY) in enumerate(MX_MY_to_eval):
     for df in dfs:
-      df.loc[:, "MX"] = MX
-      df.loc[:, "MY"] = MY
-      df["score_%s"%sig_proc] = model.predict_proba(df[train_features])[:,1] + np.random.normal(scale=1e-8, size=len(df)) #little deviation helpful for transforming score later
-      df.loc[:, "score_%s"%sig_proc] = (df["score_%s"%sig_proc] - df["score_%s"%sig_proc].min()) #rescale so everything within 0 and 1
-      df.loc[:, "score_%s"%sig_proc] = (df["score_%s"%sig_proc] / df["score_%s"%sig_proc].max())
+      df.iloc[i, df.columns.get_loc("MX")] = MX
+      df.iloc[i, df.columns.get_loc("MY")] = MY
+
+  for df in dfs:
+    all_predictions = model.predict_proba(df[train_features])
+    for i, (MX, MY) in enumerate(MX_MY_to_eval):
+      #sig_proc = "NMSSM_XYH_Y_gg_H_tautau_MX_%d_MY_%d"%(MX, MY)
+      sig_proc = "XToHHggTauTau_M%d"%MX
+      print(">", sig_proc, MX, MY)
+      df["score_%s"%sig_proc] = all_predictions[i][:,1]
+      assert (df["score_%s"%sig_proc] < 0).sum() == 0
+      assert (df["score_%s"%sig_proc] > 1).sum() == 0
 
   pd.options.mode.chained_assignment = "warn"
-
-def tan(x, b, c, d, f):
-  e = (1/(1-f))*np.arctan(c/d)
-  a = (e*d)/b
-  return (a*np.tan((x-f)*b) - c)*(x<f) + (d*np.tan((x-f)*e) - c)*(x>=f)
-popt = [1.3982465170462963, 2.1338810272238735, -0.2513888030857778, 0.7889447703857513] #nmssm
-generic_sig_cdf = lambda x: np.power(10, tan(x, *popt)) / np.power(10, tan(1, *popt))
 
 def addTransformedScores(args, df, bkg):
   """
   Transforms scores such that bkg is flat.
   """
 
-  bkg = bkg[bkg.process_id != 13]
-
-  #for sig_proc in args.eval_sig_procs:
   for score_name in filter(lambda x: x.split("_")[0]=="score", df.columns):
+    print(">", score_name)
     sig_proc = "_".join(score_name.split("_")[1:])
-    #score_name = "score_%s"%sig_proc
-
-    df.sort_values(score_name, inplace=True)
-    bkg.sort_values(score_name, inplace=True)  
-    
-    df_score = df[score_name].to_numpy()
-    bkg_score = bkg[score_name].to_numpy()
-    bkg_cdf = (np.cumsum(bkg.weight)/np.sum(bkg.weight)).to_numpy()
-
-    #skip over parts when cdf goes wrong direction because of negative weights
-    bkg_score_smoothed = []
-    bkg_cdf_smoothed = []
-    last = -1
-    for i in range(len(bkg_cdf)):
-      if (bkg_cdf[i] >= last) and (bkg_score[i] > bkg_score[i-1]): #can't have same bkg_score twice in spline
-        bkg_score_smoothed.append(bkg_score[i])
-        bkg_cdf_smoothed.append(bkg_cdf[i])
-        last = bkg_cdf[i]
-    bkg_score = np.array([0.0] + bkg_score_smoothed + [1.0])
-    bkg_cdf = np.array([0.0] + bkg_cdf_smoothed + [1.0])
-
     intermediate_name = "intermediate_transformed_score_%s"%sig_proc
 
-    # idx = np.searchsorted(bkg_score, df_score, side="right")
-    # idx[idx == len(bkg_cdf)] = len(bkg_cdf) - 1 #if df score > max(bkg_score) it will give an index out of bounds
-    # df[intermediate_name] = bkg_cdf[idx]
+    bkg_score = bkg[score_name].to_numpy()
+    bkg_weight = bkg["weight"].to_numpy()
+    s = np.argsort(bkg_score)
+    bkg_weight = bkg_weight[s]
+    bkg_score = bkg_score[s]
+
+    #only use pos
+    bkg_score = bkg_score[bkg_weight>0]
+    bkg_weight = bkg_weight[bkg_weight>0]
+
+    bkg_cdf = np.cumsum(bkg_weight)
+    bkg_cdf = bkg_cdf / bkg_cdf[-1]
+    assert bkg_cdf[-1] == 1.0
+
+    f32 = lambda x: np.array([x], dtype="float32")
+    bkg_score = np.concatenate((f32(0.0), bkg_score, f32(1.0)))
+    bkg_cdf = np.concatenate((f32(0.0), bkg_cdf, f32(1.0)))
 
     bkg_cdf_spline = interp1d(bkg_score, bkg_cdf, kind='linear')
-    df[intermediate_name] = bkg_cdf_spline(df_score)
+    # x = np.linspace(bkg_score[np.argmin(abs(0.999-bkg_cdf))],  bkg_score[np.argmin(abs(1.0-bkg_cdf))], 100)
+    # plt.clf()
+    # plt.plot(x, bkg_cdf_spline(x))
+    # plt.savefig("cdf/cdf_%s.png"%intermediate_name)
+    # plt.clf()
+    #assert np.isclose(bkg_cdf_spline(1.0), 1.0, atol=1e-5), print(bkg_cdf_spline(1.0))
 
-    x = np.linspace(bkg_score[np.argmin(abs(0.994-bkg_cdf))],  bkg_score[np.argmin(abs(0.996-bkg_cdf))], 100)
-    plt.clf()
-    plt.plot(x, bkg_cdf_spline(x))
-    plt.savefig("cdf/cdf_%s.png"%intermediate_name)
-    plt.clf()
+    df[intermediate_name] = bkg_cdf_spline(df[score_name])
 
-    df.loc[df[intermediate_name]<0, intermediate_name] = 0
-    df.loc[df[intermediate_name]>1, intermediate_name] = 1
-
-    # transformed_name = "transformed_score_%s"%sig_proc
-    # df[transformed_name] = generic_sig_cdf(df[intermediate_name])
-    # df.loc[df[transformed_name]<0, transformed_name] = 0
-    # df.loc[df[transformed_name]>1, transformed_name] = 1
-    
-    assert (df[score_name] < 0).sum() == 0
-    assert (df[score_name] > 1).sum() == 0
     assert (df[intermediate_name] < 0).sum() == 0
-    assert (df[intermediate_name] > 1).sum() == 0
-    # assert (df[transformed_name] < 0).sum() == 0
-    # assert (df[transformed_name] > 1).sum() == 0
+    assert (df[intermediate_name] > 1).sum() == 0, print(df[df[intermediate_name] > 1])
 
 def doROC(args, train_df, test_df, sig_proc, proc_dict):
   #select just bkg and sig_proc
   train_df = train_df[(train_df.y==0)|(train_df.process_id==proc_dict[sig_proc])]
   test_df = test_df[(test_df.y==0)|(test_df.process_id==proc_dict[sig_proc])]
+
+  if args.remove_gjets:
+    gjet_ids = [proc_dict[proc] for proc in common.bkg_procs["GJets"]] + [proc_dict["TTJets"]]
+    train_df = train_df[~train_df.process_id.isin(gjet_ids)]
+    test_df = test_df[~test_df.process_id.isin(gjet_ids)]
 
   train_fpr, train_tpr, t = roc_curve(train_df.y, train_df["score_%s"%sig_proc], sample_weight=train_df.weight)
   test_fpr, test_tpr, t = roc_curve(test_df.y, test_df["score_%s"%sig_proc], sample_weight=test_df.weight)
@@ -234,7 +261,7 @@ def findMassOrdering(args, model, train_df):
   sig_proc_ordering = ["" for proc in args.train_sig_procs]
   for proc in args.train_sig_procs:
     MX, MY = common.get_MX_MY(proc)
-    dummy_X = train_df.iloc[0:1]
+    dummy_X = train_df.iloc[0:1].copy()
     dummy_X.loc[:, "MX"] = MX
     dummy_X.loc[:, "MY"] = MY
     
@@ -243,17 +270,18 @@ def findMassOrdering(args, model, train_df):
       if abs(trans_dummy_X[0,-2:] - mass).sum() < 1e-4: #if found mass match
         sig_proc_ordering[i] = proc
         break
-  print(sig_proc_ordering)
   return sig_proc_ordering
 
 def evaluatePlotAndSave(args, proc_dict, model, train_features, train_df, test_df, data):
   models.setSeed(args.seed)
+  print("Before adding scores", get_memory())
   addScores(args, model, train_features, train_df, test_df, data)
+  print("After adding scores", get_memory())
 
   if not args.skipPlots:
     print(">> Plotting ROC curves")
     for sig_proc in args.eval_sig_procs:
-      print(sig_proc)
+      print(">", sig_proc)
       doROC(args, train_df, test_df, sig_proc, proc_dict)
 
     if hasattr(model["classifier"], "train_loss"):
@@ -266,29 +294,39 @@ def evaluatePlotAndSave(args, proc_dict, model, train_features, train_df, test_d
   
   if args.only_ROC: return None
   
-  #addScores(args, model, train_features, train_df, test_df, data, np.arange(260, 1000+10, 10))
+  #MX_MY_to_eval = [[mx, my] for mx in [300,400,500,600,700,800,900,1000] for my in [75,85,95]]
+  #MX_MY_to_eval += [[mx, my] for mx in [350] for my in [70,75,80,85,90,95,100,125]]
+  MX_MY_to_eval = [[mx,125] for mx in np.arange(260,1000,10)]
+  addScores(args, model, train_features, train_df, test_df, data, MX_MY_to_eval)
 
+  print(">> Creating output dataframe")
   if args.outputOnlyTest:
     output_df = pd.concat([test_df, data])
     output_df.loc[output_df.process_id!=proc_dict["Data"], "weight"] /= args.test_size #scale signal by amount thrown away
   else:
     output_df = pd.concat([test_df, train_df, data])
+  del train_df, test_df, data
   output_bkg_MC = output_df[(output_df.y==0) & (output_df.process_id != proc_dict["Data"])]
 
   if args.loadTransformBkg is not None:
+    print(">> Loading dataframe for score transformation")
     columns = list(filter(lambda x: "score" in x, output_df.columns)) + ["weight", "y", "process_id"]
     transform_df = pd.read_parquet(args.loadTransformBkg, columns=columns)
-    print(transform_df)
-    print(transform_df.columns)
     transform_bkg = transform_df[(transform_df.y==0) & (transform_df.process_id != proc_dict["Data"])]
   else:
     transform_bkg = output_bkg_MC
-  
-  print(">> Transforming scores")
-  addTransformedScores(args, output_df, transform_bkg)
 
-  output_bkg_MC = output_df[(output_df.y==0) & (output_df.process_id != proc_dict["Data"])]
+  if args.remove_gjets:
+    print(">> Removing gjet from transformation of score")
+    gjet_ids = [proc_dict[proc] for proc in common.bkg_procs["GJets"]] + [proc_dict["TTJets"]]
+    transform_bkg = transform_bkg[~transform_bkg.process_id.isin(gjet_ids)]
+
+  print(">> Transforming scores")
+  print("Before transforming", get_memory())
+  addTransformedScores(args, output_df, transform_bkg)
+  print("After transforming", get_memory())
   output_data = output_df[output_df.process_id == proc_dict["Data"]]
+  output_bkg_MC = output_df[(output_df.y==0) & (output_df.process_id != proc_dict["Data"])]
   
   if not args.skipPlots:
     print(">> Plotting output scores")
@@ -316,38 +354,37 @@ def main(args):
   if "Param" in args.model: train_features += ["MX", "MY"]
   print(train_features)
 
-  print("Before loading", tracemalloc.get_traced_memory())
+  print("Before loading", get_memory())
   df, proc_dict = loadDataFrame(args, train_features)
 
   if args.feature_importance:
     train_features += ["random"]
     df["random"] = np.random.random(size=len(df))
 
-  if args.remove_gjets_everywhere:
-    gjet_ids = [proc_dict[proc] for proc in common.bkg_procs["GJets"]]
-    df = df[~df.process_id.isin(gjet_ids)]
-  
   #shuffle bkg masses
   if "Param" in args.model:
     s = (df.y==0)&(df.process_id!=proc_dict["Data"])
     df.loc[s, "MX"] = np.random.choice(np.unique(df.loc[df.y==1, "MX"]), size=sum(s))
     df.loc[s, "MY"] = np.random.choice(np.unique(df.loc[df.y==1, "MY"]), size=sum(s))
+  print("After loading", get_memory())
 
-  print("After loading", tracemalloc.get_traced_memory())
-  MC = df[~(df.process_id==proc_dict["Data"])]
-  data = df[df.process_id==proc_dict["Data"]]
+  MC = df.loc[~(df.process_id==proc_dict["Data"])]
+  data = df.loc[df.process_id==proc_dict["Data"]]
   del df
+  print("After half splitting", get_memory())
+
 
   train_df, test_df = train_test_split_consistent(MC, test_size=args.test_size, random_state=1)
+  del MC
   train_df = train_df[train_df.weight>0]
-
+  if args.data_as_bkg:
+    train_df = pd.concat([train_df[train_df.y==1], data])
   if args.cv_fold is not None:
     train_df, test_df = cv_fold_consistent(args, train_df, test_df)
-  del MC
-  print("After splitting", tracemalloc.get_traced_memory())
+  print("After splitting", get_memory())
 
-  if args.remove_gjets_training:
-    gjet_ids = [proc_dict[proc] for proc in common.bkg_procs["GJets"]]
+  if args.remove_gjets:
+    gjet_ids = [proc_dict[proc] for proc in common.bkg_procs["GJets"]] + [proc_dict["TTJets"]]
     train_df = train_df[~train_df.process_id.isin(gjet_ids)]
 
   if not args.loadModel:
@@ -356,8 +393,8 @@ def main(args):
 
     if args.drop_preprocessing:
       to_numpy = preprocessing.FunctionTransformer(lambda X, y=None: X.to_numpy())
-      #model = Pipeline([('to_numpy', to_numpy), ('classifier', classifier)])
-      model = Pipeline([('classifier', classifier)])
+      model = Pipeline([('to_numpy', to_numpy), ('classifier', classifier)])
+      #model = Pipeline([('classifier', classifier)])
     else:
       numeric_features, categorical_features = preprocessing.autoDetermineFeatureTypes(train_df, train_features)
       print("Numeric features:", numeric_features)
@@ -365,20 +402,17 @@ def main(args):
       model = Pipeline([('transformer', preprocessing.Transformer(numeric_features, categorical_features)), ('classifier', classifier)])
 
     sumw_before = train_df.weight.sum()
-
-    print("Before training", tracemalloc.get_traced_memory())
+    print("Before training", get_memory())
 
     train_sig_ids = [proc_dict[sig_proc] for sig_proc in args.train_sig_procs]
     s = train_df.y==0 | train_df.process_id.isin(train_sig_ids)
-    s_test = test_df.y==0 | test_df.process_id.isin(train_sig_ids)
     fit_params = {"classifier__w": train_df[s]["weight"]}
     if not args.drop_preprocessing: fit_params["transformer__w"] = train_df[s]["weight"]
     if hasattr(model["classifier"], "setOutdir"): model["classifier"].setOutdir(args.outdir)
     print(">> Training")
     model.fit(train_df[s][train_features], train_df[s]["y"], **fit_params)
     print(">> Training complete")
-
-    print("After training", tracemalloc.get_traced_memory())
+    print("After training", get_memory())
 
     assert sumw_before == train_df.weight.sum()
 
@@ -406,8 +440,6 @@ def doParamTests(parser, args):
   #training on all
   args_copy = copy.deepcopy(args)
   args_copy.outdir = os.path.join(args.outdir, "all")
-  #common.submitToBatch([sys.argv[0]] + common.parserToList(args_copy))
-  #print(common.parserToList(args_copy))
   start(parser, common.parserToList(args_copy))
 
   #training on individual
@@ -417,19 +449,14 @@ def doParamTests(parser, args):
       args_copy.outdir = os.path.join(args.outdir, "only")
       args_copy.train_sig_procs = [sig_proc]
       args_copy.eval_sig_procs = [sig_proc]
-      #common.submitToBatch([sys.argv[0]] + common.parserToList(args_copy))
-      #print(common.parserToList(args_copy))
       start(parser, common.parserToList(args_copy))
 
   #skip one
-  #training on individual
   for sig_proc in args.train_sig_procs:
     args_copy = copy.deepcopy(args)
     args_copy.outdir = os.path.join(args.outdir, "skip")
     args_copy.train_sig_procs.remove(sig_proc)
     args_copy.eval_sig_procs = [sig_proc]
-    #common.submitToBatch([sys.argv[0]] + common.parserToList(args_copy))
-    #print(common.parserToList(args_copy))
     start(parser, common.parserToList(args_copy))
 
 
@@ -453,11 +480,6 @@ def doHyperParamSearch(parser, args):
       json.dump(experiment, f, indent=4)
     args_copy.hyperparams = hyperparams_path
 
-    # command = "python %s %s"%(sys.argv[0], " ".join(common.parserToList(args)))
-    # print(command)
-    # os.system(command)
-
-    #print(common.parserToList(args_copy))
     start(parser, common.parserToList(args_copy))
 
 def doCV(parser, args):
@@ -471,15 +493,12 @@ def doCV(parser, args):
     args_copy.outdir = os.path.join(original_outdir, "cv_fold_%d"%i)
     args_copy.cv_fold = "%d/%d"%(i, n_folds)
 
-    #command = "python %s %s"%(sys.argv[0], " ".join(common.parserToList(args)))
-    #print(command)
-    #os.system(command)  
-
-    #print(common.parserToList(args_copy))
     start(parser, common.parserToList(args_copy))
 
 def start(parser, args=None):
   args = parser.parse_args(args)
+
+  if args.parquetSystematic: assert args.loadTransformBkg is not None
 
   if args.eval_sig_procs == None:
     args.eval_sig_procs = args.train_sig_procs
@@ -511,7 +530,7 @@ def start(parser, args=None):
     return True
     
   if args.batch:
-    common.submitToBatch([sys.argv[0]] + common.parserToList(args))
+    common.submitToBatch([sys.argv[0]] + common.parserToList(args), extra_memory=args.batch_slots)
     return True
 
   if args.hyperparams != None:
@@ -520,9 +539,9 @@ def start(parser, args=None):
     print(args.hyperparams)
 
   print(">> Will train on:")
-  print("\n".join(args.train_sig_procs))
+  print("\n>".join(args.train_sig_procs))
   print(">> Will evaluate on:")
-  print("\n".join(args.eval_sig_procs))
+  print("\n>".join(args.eval_sig_procs))
 
   tracemalloc.start()
 
@@ -542,13 +561,16 @@ if __name__=="__main__":
   parser.add_argument('--outputOnlyTest', action="store_true", default=False)
   parser.add_argument('--test-size', type=float, default=0.5)
   parser.add_argument('--drop-preprocessing', action="store_true")
+  parser.add_argument('--data-as-bkg', action="store_true", help="Use data as training background")
+
   parser.add_argument('--batch', action="store_true")
+  parser.add_argument('--batch-slots', type=int, default=1)
+
   parser.add_argument('--feature-importance', action="store_true")
   parser.add_argument('--do-param-tests', action="store_true")
   parser.add_argument('--skip-only-test', action="store_true")
   parser.add_argument('--only-ROC', action="store_true")
-  parser.add_argument('--remove-gjets-everywhere', action="store_true")
-  parser.add_argument('--remove-gjets-training', action="store_true")
+  parser.add_argument('--remove-gjets', action="store_true")
   parser.add_argument('--dataset-fraction', type=float, default=1.0, help="Only use a fraction of the whole dataset.")
 
   parser.add_argument('--hyperparams',type=str, default=None)
@@ -565,6 +587,6 @@ if __name__=="__main__":
   parser.add_argument('--parquetSystematic', action="store_true")
   parser.add_argument('--loadTransformBkg', type=str, default=None)
 
-  import cProfile
-  cProfile.run('start(parser)', 'restats')
-  #start(parser)
+  #import cProfile
+  #cProfile.run('start(parser)', 'restats')
+  start(parser)

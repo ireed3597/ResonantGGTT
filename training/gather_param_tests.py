@@ -96,7 +96,7 @@ def gatherExperimentResults(path, bkg_eff):
     MX, MY = common.get_MX_MY(sig_proc)
     results.loc[sig_proc, "MX"] = MX
     results.loc[sig_proc, "MY"] = MY
-  results.sort_values("MX", inplace=True)
+  results.sort_values(["MX","MY"], inplace=True)
 
   nice_index = (["MX_%d_MY_%d"%(row.MX, row.MY) for index, row in results.iterrows()])
   results.index = nice_index

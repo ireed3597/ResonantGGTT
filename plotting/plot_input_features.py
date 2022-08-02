@@ -32,17 +32,16 @@ def createDefaultConfig(data, bkg, sig):
     d = data[column][data[column]!=common.dummy_val]
     b = bkg[column][bkg[column]!=common.dummy_val]
     s = sig[column][sig[column]!=common.dummy_val]
-    #d = data[column]
-    #b = bkg[column]
-    #s = sig[column]
+    
 
     low = min([d.quantile(0.05), b.quantile(0.05), s.quantile(0.05)])
-    #low = min([min(d), min(b), min(s)])
-    #low = min([9, low])
     high = max([d.quantile(0.95), b.quantile(0.95), s.quantile(0.95)])
     config[column] = {"range": [float(low),float(high)]}
-
     print(column, low, high)
+
+  #exceptions
+  config["Diphoton_mass"] = {"range": [55.0, 180.0]}
+
   return config
 
 def writeDefaultConfig(data, bkg, sig):
@@ -176,6 +175,8 @@ def plot_feature(data, bkg, sig, proc_dict, sig_procs, column, nbins, feature_ra
   f, axs = plt.subplots(2, sharex=True, gridspec_kw={'height_ratios': [3, 1]})
   
   data_hist, edges = np.histogram(data[column], bins=nbins, range=feature_range, weights=data.weight)
+  data_error = np.sqrt(data_hist)
+  data_error[data_error == 0] = 1.0
   bin_centres = (edges[:-1]+edges[1:])/2
 
   bkg_stack, bkg_stack_w, bkg_stack_labels = createBkgStack(bkg, column, proc_dict)
@@ -185,11 +186,11 @@ def plot_feature(data, bkg, sig, proc_dict, sig_procs, column, nbins, feature_ra
   #bkg_sumw, bkg_error = getBkgError(bkg_stack, bkg_stack_w, edges)
 
   ratio = data_hist / bkg_sumw
-  ratio_err = np.sqrt(data_hist) / bkg_sumw
+  ratio_err = data_error / bkg_sumw
 
   axs[0].fill_between(edges, np.append(bkg_sumw-bkg_error, 0), np.append(bkg_sumw+bkg_error, 0), step="post", alpha=0.5, color="grey", zorder=8) #background uncertainty
   axs[0].hist(bkg_stack, edges, weights=bkg_stack_w, label=bkg_stack_labels, stacked=True, color=colour_schemes[len(bkg_stack)], zorder=7) #background
-  axs[0].errorbar(bin_centres, data_hist, np.sqrt(data_hist), label="Data", fmt='ko', zorder=10) #data
+  axs[0].errorbar(bin_centres, data_hist, data_error, label="Data", fmt='ko', zorder=10) #data
   axs[0].set_ylabel("Events")
 
   axs[1].errorbar(bin_centres, ratio, ratio_err, label="Data", fmt='ko')
@@ -201,6 +202,7 @@ def plot_feature(data, bkg, sig, proc_dict, sig_procs, column, nbins, feature_ra
   plt.sca(axs[0])
   mplhep.cms.label(llabel="Work in Progress", data=True, lumi=138, loc=0)
 
+  os.makedirs(save_path, exist_ok=True)
   for sig_proc in sig_procs:
     try: _ = [b.remove() for b in bars]
     except: pass
@@ -215,7 +217,7 @@ def plot_feature(data, bkg, sig, proc_dict, sig_procs, column, nbins, feature_ra
     axs[0].autoscale()
     axs[0].get_ylim()
     if auto_legend: adjustLimits(bin_centres, [sig_hist*sig_sf, data_hist], axs[0])
-    plt.savefig("%s_%s.png"%(save_path, sig_proc))
+    plt.savefig("%s/%s.png"%(save_path, sig_proc))
     #plt.savefig("%s.pdf"%save_path)
 
     axs[0].set_yscale("log")
@@ -223,7 +225,7 @@ def plot_feature(data, bkg, sig, proc_dict, sig_procs, column, nbins, feature_ra
     axs[0].autoscale()
     axs[0].get_ylim()
     if auto_legend: adjustLimits(bin_centres, [sig_hist*sig_sf, data_hist], axs[0])
-    plt.savefig("%s_%s_log.png"%(save_path, sig_proc))
+    plt.savefig("%s/%s_log.png"%(save_path, sig_proc))
     #plt.savefig("%s_log.pdf"%save_path)
 
   # for sig_proc in sig_procs:
@@ -286,10 +288,18 @@ if __name__=="__main__":
       proc_dict[bkg_proc] = -9999
   
   print(">> Loading dataframes")  
-  columns = common.all_columns_no_weight + [args.weight]
+  
+  from pyarrow.parquet import ParquetFile
+  import pyarrow as pa
+  pf = ParquetFile(args.input) 
+  iter = pf.iter_batches(batch_size = 1000)
+  first_ten_rows = next(iter) 
+  df = pa.Table.from_batches([first_ten_rows]).to_pandas()
+  columns = list(filter(lambda x: "weight" not in x, df.columns)) + [args.weight]
   columns_to_exclude = ["event", "MX", "MY"]
   columns = list(set(columns).difference(columns_to_exclude))
   df = pd.read_parquet(args.input, columns=columns)
+
   df.rename({args.weight: "weight"}, axis=1, inplace=True)
 
   print(">> Splitting into data, background and signal")
@@ -314,6 +324,9 @@ if __name__=="__main__":
   os.makedirs(args.output, exist_ok=True)
    
   np.seterr(all='ignore')
+
+  #import cProfile
+  #cProfile.run('plot(data, bkg, sig, proc_dict, args)', 'restats')
   plot(data, bkg, sig, proc_dict, args)
   
   

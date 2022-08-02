@@ -49,22 +49,26 @@ def main(args):
   with open(args.summary_input, "r") as f:
     proc_dict = json.load(f)["sample_id_map"]
 
-  for entry in optim_results:
-    score_name = entry["score"]
-    m = int(score_name.split("M")[1])
+  print(df[df.process_id == proc_dict["XToHHggTauTau_M300"]].weight.sum())
+  print(df[df.process_id == proc_dict["XToHHggTauTau_M300"]].weight.sum()/140)
 
-    tagged_df = assignSignalRegions(df, entry, score_name)
+  score_prefix = "intermediate_transformed_score_XToHHggTauTau_M"
+  masses = sorted([int(column[len(score_prefix):]) for column in df.columns if score_prefix in column])
+
+  for m in masses:
+    score_name = score_prefix + str(m)
+    tagged_df = assignSignalRegions(df, optim_results, score_name)
+
     data = tagged_df[tagged_df.process_id == proc_dict["Data"]]
-    
-    # if "XToHHggTauTau_M%d"%m in proc_dict.keys():
-    #   sig = tagged_df[tagged_df.process_id == proc_dict["XToHHggTauTau_M%d"%m]]
-    # else:
-    #   sig = None
-    # if args.injectSignal != "":
-    #   sig_inject = tagged_df[tagged_df.process_id == proc_dict[args.injectSignal]]
-    #   proc_name_inject = "gravitonm%d"%(common.get_MX_MY(args.injectSignal)[0])
-    # else:
-    #   sig_inject = None
+    if "XToHHggTauTau_M%d"%m in proc_dict.keys():
+      sig = tagged_df[tagged_df.process_id == proc_dict["XToHHggTauTau_M%d"%m]]
+    else:
+      sig = None
+    if args.injectSignal != "":
+      sig_inject = tagged_df[tagged_df.process_id == proc_dict[args.injectSignal]]
+      proc_name_inject = "gravitonm%d"%(common.get_MX_MY(args.injectSignal)[0])
+    else:
+      sig_inject = None
 
     proc_name = "gravitonm%d"%m
     mgg = 125
@@ -77,8 +81,8 @@ def main(args):
         elif not args.combineYears:
           writeOutputTree(data[(data.SR==SR)&(data.year==year)].Diphoton_mass, data[(data.SR==SR)&(data.year==year)].weight, "Data", "%scat%d"%(proc_name, SR), year)
 
-        #if sig is not None:  writeOutputTree(sig[(sig.SR==SR)&(sig.year==year)].Diphoton_mass, sig[(sig.SR==SR)&(sig.year==year)].weight, "%s_%d_%d"%(proc_name, year, mgg), "%scat%d"%(proc_name, SR), year, undo_lumi_scaling=True, scale_signal=False)
-        #if sig_inject is not None: writeOutputTree(sig_inject[(sig_inject.SR==SR)&(sig_inject.year==year)].Diphoton_mass, sig_inject[(sig_inject.SR==SR)&(sig_inject.year==year)].weight, "%s_%d_%d"%(proc_name, year, mgg), "%scat%d"%(proc_name, SR), year, undo_lumi_scaling=True, scale_signal=False)
+        if sig is not None:  writeOutputTree(sig[(sig.SR==SR)&(sig.year==year)].Diphoton_mass, sig[(sig.SR==SR)&(sig.year==year)].weight, "%s_%d_%d"%(proc_name, year, mgg), "%scat%d"%(proc_name, SR), year, undo_lumi_scaling=True, scale_signal=False)
+        if sig_inject is not None: writeOutputTree(sig_inject[(sig_inject.SR==SR)&(sig_inject.year==year)].Diphoton_mass, sig_inject[(sig_inject.SR==SR)&(sig_inject.year==year)].weight, "%s_%d_%d"%(proc_name, year, mgg), "%scat%d"%(proc_name, SR), year, undo_lumi_scaling=True, scale_signal=False)
 
 if __name__=="__main__":
   parser = argparse.ArgumentParser()

@@ -63,8 +63,8 @@ def main(args):
     proc_name = "NmssmYggMx%dMy%d"%(mx, my)
   """
   mgg = 125.0
-  mx = 500
-  proc_name="radionm500"
+  mx = 300
+  proc_name="gravitonm260"
 
   years = data.year.unique()
   
