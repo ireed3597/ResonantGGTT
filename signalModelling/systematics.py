@@ -13,6 +13,8 @@ import tracemalloc
 
 from numba import jit
 
+Y_gg = False
+
 @jit(nopython=True)
 def go_fast(hist, bin_edges, l, h):
   min_width = h-l
@@ -20,12 +22,17 @@ def go_fast(hist, bin_edges, l, h):
     sumw = 0
     for j in range(i, len(hist)):
       sumw += hist[j]
-      if sumw >= 0.683:
-        width = bin_edges[j]-bin_edges[i]
+      if sumw >= 0.6827:
+        width = bin_edges[j+1]-bin_edges[i]
+
+        #correct for over counting, i.e. estimate where in this bin we hit 0.6827
+        width -= (bin_edges[1]-bin_edges[0]) * (sumw-0.6827) / hist[j]
+
         if width < min_width:
           min_width = width
+          #print(bin_edges[i], bin_edges[j], (bin_edges[j]+bin_edges[i])/2)
         break
-    if sumw < 0.683: #no more 68% windows
+    if sumw < 0.6827: #no more 68% windows
       break
   return min_width
 
@@ -33,21 +40,37 @@ def getEffSigma(mgg, w, my):
   assert len(w) >= 100
   assert sum(w) > 0
 
-  l = my - 10
-  h = my + 10
+  if Y_gg:
+    l = my - 10*(my/125.0)
+    h = my + 10*(my/125.0)
+  else:
+    l = 125 - 10
+    h = 125 + 10
   s = (mgg >= l) & (mgg <= h)
-  w_normed = w[s] / sum(w[s])
+  w_normed = w[s] / sum(w)
 
-  hist, bin_edges = np.histogram(mgg[s], bins=2000, range=(l,h), weights=w_normed)
+  if sum(w_normed) < 0.6827:
+    print("Warning: %.2f (< 68%%) of signal (my=%d) was found in range used for effSigma"%(sum(w_normed), my))
+    return h-l
+
+  hist, bin_edges = np.histogram(mgg[s], bins=200, range=(l,h), weights=w_normed)
   
   min_width = go_fast(hist, bin_edges, l, h)
   assert min_width != h-l
+  assert min_width != 0
   
   return min_width / 2
 
+# def getEffSigma(mgg, w, my):
+#   return np.std(mgg)
+
 def getMean(mgg, w, my):
-  l = my - 10
-  h = my + 10
+  if Y_gg:
+    l = my - 10*(my/125.0)
+    h = my + 10*(my/125.0)
+  else:
+    l = 125 - 10
+    h = 125 + 10
   s = (mgg >= l) & (mgg <= h)
   return np.average(mgg[s], weights=w[s])
 
@@ -68,20 +91,17 @@ def getMean(mgg, w, my):
 
 #   return mean
 
-def testEffSigma():
-  mgg1 = np.random.normal(loc=125, scale=0.5, size=10000)
-  mgg2 = np.random.normal(loc=125, scale=0.5, size=10000)
-  mgg = np.concatenate([mgg1, mgg2])
-  #w = np.random.random(size=len(mgg))
+def testEffSigma(scale=0.5, loc=125, size=10000):
+  mgg = np.random.normal(loc=loc, scale=scale, size=size)
   w = np.ones_like(mgg)
 
-  import matplotlib
-  matplotlib.use("Agg")
-  import matplotlib.pyplot as plt
-  plt.hist(mgg, bins=100, range=(120,130), weights=w)
-  plt.savefig("eff_sigma_test.png")
+  # import matplotlib
+  # matplotlib.use("Agg")
+  # import matplotlib.pyplot as plt
+  # plt.hist(mgg, bins=100, range=(120,130), weights=w)
+  # plt.savefig("eff_sigma_test.png")
 
-  effSigma = getEffSigma(mgg, w)
+  effSigma = getEffSigma(mgg, w, 125.0)
   print(effSigma)
 
 def rename_btag_systematics(df):
@@ -137,17 +157,27 @@ def deriveParquetYieldSystematic(dfs, systematic, mass):
 
   df_up = dfs["%s_up"%systematic]
   df_down = dfs["%s_down"%systematic]
+  assert len(df_up) > 0
+  assert len(df_down) > 0
 
   up = df_up.loc[(df_up.MX==mx)&(df_up.MY==my), "weight"].sum()
   down = df_down.loc[(df_down.MX==mx)&(df_down.MY==my), "weight"].sum()
 
-  variation_mean = 1 + abs(up - down) / (up + down)
+  if up+down == 0:
+    variation_mean = 1.0
+  else:
+    variation_mean = 1 + abs(up - down) / (up + down)
 
   return float(variation_mean)
 
 def getParquetShapeVariations(f, df_up, df_down):
+  assert len(df_up) > 0
+  assert len(df_down) > 0
+
   up = f(df_up)
   down = f(df_down)
+  assert (up + down) != 0, print(df_up, df_down)
+
   variation_mean = (up - down) / (up + down)
   return float(variation_mean)
 
@@ -193,7 +223,6 @@ def deriveSystematics(dfs, original_outdir):
         year_SR_dfs[key] = df[(df.year==int(year))&(df.SR==int(SR))]
 
       for mass in sig_model[year][SR].keys():
-        print("", mass)
         #check if systematics already calculated
         closest_mass = sig_model[year][SR][mass]["this mass"]["closest_mass"]
         if closest_mass not in systematics[year][SR].keys():
@@ -203,6 +232,7 @@ def deriveSystematics(dfs, original_outdir):
           for systematic in parquet_yield_systematics:
             systematics[year][SR][closest_mass][systematic] = deriveParquetYieldSystematic(year_SR_dfs, systematic, closest_mass)
           for systematic in parquet_shape_systematics:
+            #print(systematic)
             systematics[year][SR][closest_mass].update(deriveParquetShapeSystematics(year_SR_dfs, systematic, closest_mass))
 
         systematics[year][SR][mass] = systematics[year][SR][closest_mass].copy()
@@ -290,17 +320,21 @@ def tagSignals(df, optim_dir, proc_dict):
   return df[df.SR!=-1]
 
 def loadDataFrame(path, proc_dict, optim_dir, columns=None, sample_fraction=1.0):
-  if columns is None:
-    columns = common.getColumns(path)
-    columns = list(filter(lambda x: x[:5] != "score", columns))
-    #print("\n".join(columns))
   df = pd.read_parquet(path, columns=columns)
   df = df[df.y==1]
+  #df = df[df.process_id==proc_dict["NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_600"]]
   if sample_fraction != 1.0 :df = df.sample(frac=sample_fraction)  
 
   common.add_MX_MY(df, proc_dict)
   tagSignals(df, optim_dir, proc_dict)
+  df = df[filter(lambda x: "score" not in x, df.columns)]
   return df
+
+def getColumns(path):
+  columns = common.getColumns(path)
+  columns = list(filter(lambda x: x[:5] != "score", columns))
+  columns = list(filter(lambda x: ("intermediate_transformed_score" in x), columns)) + ["Diphoton_mass", "process_id", "weight", "y", "year"]
+  return columns
 
 def loadDataFrames(args):
   with open(args.summary_input) as f:
@@ -308,25 +342,28 @@ def loadDataFrames(args):
   
   dfs = {}
   
-  #load nominal dataframe
-  df = loadDataFrame(os.path.join(args.parquet_input, "merged_nominal.parquet"), proc_dict, args.optim_dir, sample_fraction=args.dataset_fraction)
-  systematic_columns = list(filter(lambda x: ("intermediate_transformed_score" in x), df.columns)) + ["Diphoton_mass", "process_id", "weight", "y", "year"]
-  #print("\n".join(systematic_columns))
-  dfs["nominal"] = df
-
   tracemalloc.start()
-
   for path in os.listdir(args.parquet_input):
     if (".parquet" in path) and ("nominal" not in path):
-    #if "fnuf" in path or "merged_JER" in path:
-      print(path)
-      print(np.array(tracemalloc.get_traced_memory())/(1024*1024*1024))
-      df = loadDataFrame(os.path.join(args.parquet_input, path), proc_dict, args.optim_dir, columns=systematic_columns, sample_fraction=args.dataset_fraction)
+      print(path, np.array(tracemalloc.get_traced_memory())/(1024*1024*1024))
+      full_path = os.path.join(args.parquet_input, path)
+
+      df = loadDataFrame(full_path, proc_dict, args.optim_dir, columns=getColumns(full_path), sample_fraction=args.dataset_fraction)
       name = "_".join(path.split(".parquet")[0].split("_")[1:])
       dfs[name] = df
-
   tracemalloc.stop()
-  print(dfs)
+
+  #load nominal dataframe
+  nominal_path = os.path.join(args.parquet_input, "merged_nominal.parquet")
+
+  columns = getColumns(full_path) #columns from last systematic file
+  columns.remove("weight")
+  columns += list(filter(lambda x: "weight" in x, common.getColumns(nominal_path))) #add weight systematics
+
+  df = loadDataFrame(nominal_path, proc_dict, args.optim_dir, columns=columns, sample_fraction=args.dataset_fraction) #get columns from last systematic file
+  dfs["nominal"] = df
+  
+  #print(dfs)
   return dfs
 
 def main(args):
@@ -337,7 +374,7 @@ def main(args):
   dfs = loadDataFrames(args)
 
   nominal_masses = np.sort(np.unique(dfs["nominal"].MX))
-  masses = np.arange(nominal_masses[0], nominal_masses[-1]+args.step, args.step, dtype=int)
+  #masses = np.arange(nominal_masses[0], nominal_masses[-1]+args.step, args.step, dtype=int)
   
   deriveSystematics(dfs, args.outdir)
   addMigrationSystematics(args.outdir)
@@ -351,10 +388,13 @@ if __name__=="__main__":
   parser.add_argument('--step', type=float, default=10.0)
   parser.add_argument('--batch', action="store_true")
   parser.add_argument('--batch-slots', type=int, default=2)
+  parser.add_argument('--Y-gg', action="store_true")
 
   parser.add_argument('--dataset-fraction', type=float, default=1.0)
   args = parser.parse_args()
 
   os.makedirs(args.outdir, exist_ok=True)
+
+  Y_gg = args.Y_gg #global variable to tell getMean and getEffSigma what ranges to look in
 
   main(args)

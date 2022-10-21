@@ -19,6 +19,9 @@ import xgboost as xgb
 import tracemalloc
 get_memory = lambda: np.array(tracemalloc.get_traced_memory())/1024**3
 
+from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard.summary import hparams
+
 # print(torch.cuda.is_available())
 # if torch.cuda.is_available():  
 #   dev = "cuda:0" 
@@ -175,6 +178,13 @@ class ParamNN(ParamModel):
       }
     else:
       self.hyperparams = hyperparams
+
+    if "log_dir" not in hyperparams:
+      self.hyperparams["log_dir"] = None
+    else:
+      import socket
+      from datetime import datetime
+      self.hyperparams["log_dir"] = os.path.join(self.hyperparams["log_dir"], datetime.now().strftime('%b%d_%H-%M-%S') + '_' + socket.gethostname())
     
     if self.hyperparams["pass_through"] == 0:
       modules = [
@@ -418,8 +428,8 @@ class ParamNN(ParamModel):
     
     #split samples into training and validation
     Xt, Xv, yt, yv, wt, wv = train_test_split(X, y, w, test_size=0.2, random_state=1)
-    assert len(np.unique(Xt[:,-self.n_params:], axis=0)) == len(self.unique_combinations)
-    assert len(np.unique(Xv[:,-self.n_params:], axis=0)) == len(self.unique_combinations)
+    assert len(np.unique(Xt[:,-self.n_params:], axis=0)) == len(self.unique_combinations), print(len(np.unique(Xt[:,-self.n_params:], axis=0)), len(self.unique_combinations))
+    assert len(np.unique(Xv[:,-self.n_params:], axis=0)) == len(self.unique_combinations), print(len(np.unique(Xv[:,-self.n_params:], axis=0)), len(self.unique_combinations))
 
     self.equaliseWeights(Xt, yt, wt)
     self.equaliseWeights(Xv, yv, wv)
@@ -452,6 +462,8 @@ class ParamNN(ParamModel):
       t_idx.append((Xt[:,-self.n_params:]==mass).sum(axis=1) == self.n_params)
       v_idx.append((Xv[:,-self.n_params:]==mass).sum(axis=1) == self.n_params)
 
+    self.writer = SummaryWriter(self.hyperparams["log_dir"])
+    
     with tqdm(range(self.hyperparams["max_epochs"])) as t:
       for i_epoch in t:
         self.model.train()
@@ -461,6 +473,9 @@ class ParamNN(ParamModel):
           loss.backward()
           optimizer.step()
         
+        if i_epoch == 0:
+          self.writer.add_graph(self.model, input_to_model=batch_X)
+
         self.model.eval()
         with torch.no_grad():
           tl = []
@@ -472,12 +487,18 @@ class ParamNN(ParamModel):
             tl.append(self.getTotLoss(Xt[s], yt[s], wt[s]) * len(Xt[s]))
             s = v_idx[i]
             vl.append(self.getTotLoss(Xv[s], yv[s], wv[s]) * len(Xv[s]))
-          
+
+            #self.writer.add_scalar("Loss_masses/%d/train"%i, tl[-1], i_epoch)
+            #self.writer.add_scalar("Loss_masses/%d/validation"%i, vl[-1], i_epoch)
+
           self.train_loss.append(np.array(tl))
           self.validation_loss.append(np.array(vl))
 
           t.set_postfix(train_loss=self.train_loss[-1].sum(), validation_loss=self.validation_loss[-1].sum(), gamma=scheduler.get_last_lr()[0])
-          
+          self.writer.add_scalar("Loss/train", self.train_loss[-1].sum(), i_epoch)
+          self.writer.add_scalar("Loss/validation", self.validation_loss[-1].sum(), i_epoch)
+          self.writer.add_scalar("Loss/lr", scheduler.get_last_lr()[0], i_epoch)
+
           if self.outdir != None:
             if self.validation_loss[-1].sum() == np.array(self.validation_loss).sum(axis=1).min(): #if best loss is current loss
               self.saveModel()
@@ -537,3 +558,12 @@ class ParamNN(ParamModel):
         all_predictions.append(np.concatenate([(1-predictions)[:,np.newaxis], predictions[:,np.newaxis]], axis=1)) #get into format expected by sklearn / xgboost
     
     return all_predictions
+
+  def addHyperparamMetrics(self, metrics):
+    exp, ssi, sei = hparams(self.hyperparams, metric_dict=metrics)
+    self.writer.file_writer.add_summary(exp)                 
+    self.writer.file_writer.add_summary(ssi)                 
+    self.writer.file_writer.add_summary(sei) 
+    for key, item in metrics.items():
+      self.writer.add_scalar(key, item)
+    self.writer.close()

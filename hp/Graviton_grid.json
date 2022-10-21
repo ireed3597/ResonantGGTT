@@ -1,0 +1,14 @@
+{
+  "pass_through":[0],
+  "max_epochs": [500],
+  "batch_size": [128],
+  "lr": [0.01], 
+  "min_epoch": [20],
+  "grace_epochs": [15],
+  "tol": [0.001],
+  "gamma": [0.9],
+  "dropout": [0.025,0.05,0.075],
+  "n_layers": [2,3,4],
+  "n_nodes": [40,50,60],
+  "log_dir": ["Outputs/Graviton_HP_Tuning/runs"]
+}

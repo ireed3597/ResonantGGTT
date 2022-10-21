@@ -131,7 +131,12 @@ def prefiringWeights(df):
   df.loc[:, "weight_L1_prefiring_sf_up"] = 1.0
   df.loc[:, "weight_L1_prefiring_sf_down"] = 1.0
 
-def main(parquet_input, parquet_output, summary_input, do_test, keep_features):
+def selectSigProcs(df, proc_dict, sig_procs):
+  data_bkg_ids = [proc_dict[proc] for proc in common.bkg_procs["all"]+["Data"]]
+  sig_proc_ids = [proc_dict[proc] for proc in sig_procs]
+  return df[df.process_id.isin(data_bkg_ids+sig_proc_ids)]
+
+def main(parquet_input, parquet_output, summary_input, do_test, keep_features, sig_procs=None):
   if not do_test:
     df = pd.read_parquet(parquet_input)
   else:
@@ -144,6 +149,12 @@ def main(parquet_input, parquet_output, summary_input, do_test, keep_features):
 
   original_columns = list(df.columns)
 
+  with open(summary_input, "r") as f:
+    proc_dict = json.load(f)["sample_id_map"]
+
+  if sig_procs != None:
+    df = selectSigProcs(df, proc_dict, sig_procs)
+
   print(1)
   df = applyPixelVeto(df)
   df = apply90WPID(df)
@@ -154,9 +165,6 @@ def main(parquet_input, parquet_output, summary_input, do_test, keep_features):
   checkNans(df)
   print(2.3)
   checkInfs(df)
-
-  with open(summary_input, "r") as f:
-    proc_dict = json.load(f)["sample_id_map"]
 
   common.add_MX_MY(df, proc_dict)
 
@@ -212,10 +220,12 @@ if __name__=="__main__":
   parser.add_argument('--test', action="store_true", default=False)
   parser.add_argument('--keep-features', '-f', type=str, default=None)
   parser.add_argument('--batch', action="store_true")
+  parser.add_argument('--batch-slots', type=int, default=1)
+  parser.add_argument('--sig-procs', '-p', type=str, nargs="+", default=None)
 
   args = parser.parse_args()
 
   if args.batch:
-    common.submitToBatch([sys.argv[0]] + common.parserToList(args))
+    common.submitToBatch([sys.argv[0]] + common.parserToList(args), extra_memory=args.batch_slots)
   else:
-    main(args.parquet_input, args.parquet_output, args.summary_input, args.test, args.keep_features)
+    main(args.parquet_input, args.parquet_output, args.summary_input, args.test, args.keep_features, args.sig_procs)

@@ -131,6 +131,7 @@ dmypy.json
 # My additions
 *.parquet
 *.json
+!hp/*.json
 *.png
 *.root
 *.model

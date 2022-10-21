@@ -1,10 +1,8 @@
-from ctypes import alignment
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import mplhep
 mplhep.set_style("CMS")
-plt.rcParams["figure.figsize"] = (20,10)
 
 def plotDiff(x, y1, y2, y1_label, y2_label, xlabel, ylabel, savepath):
   f, axs = plt.subplots(2, sharex=True, gridspec_kw={'height_ratios': [3, 1]})
@@ -41,9 +39,9 @@ def plot2DDiff(x1_x2, y1, y2, y1_label, y2_label, xlabel, ylabel, savepath):
     axs[1].plot(x[idx], 100*(y1[idx]-y2[idx]), color="tab:blue")
     y1_label, y2_label = None, None
 
-  axs[0].legend()
+  axs[0].legend(loc='center right')
 
-  axs[0].set_ylim(axs[0].get_ylim()) #force y lim to stay the same
+  axs[0].set_ylim((axs[0].get_ylim()[0] - (axs[0].get_ylim()[1]-axs[0].get_ylim()[0])*0.1, axs[0].get_ylim()[1]))
   axs[1].set_ylim(axs[1].get_ylim())
   text_yet = False
   for i in range(1, len(x1_x2)):
@@ -56,6 +54,8 @@ def plot2DDiff(x1_x2, y1, y2, y1_label, y2_label, xlabel, ylabel, savepath):
       axs[1].plot([(2*i-1)/2, (2*i-1)/2], axs[1].get_ylim(), '--', color='0.8')
       text_yet = False
 
+  plt.xticks(fontsize=15)
+  plt.xticks(rotation = 90)
 
   f.savefig(savepath+".png")
   f.savefig(savepath+".pdf")
@@ -77,6 +77,7 @@ if __name__=="__main__":
   mx_my = np.array(mx_my)
 
   if (mx_my[:,1] == 125.0).all():
+    plt.rcParams["figure.figsize"] = (12.5,10)
     mx = mx_my[:,0]
 
     mx=mx[1:]
@@ -85,7 +86,11 @@ if __name__=="__main__":
     plotDiff(mx, results["all"], results["only"], "All", "Only", r"$m_X$", "Signal Efficiency", os.path.join(sys.argv[1], "all_only"))
     plotDiff(mx, results["all"], results["skip"], "All", "Skip", r"$m_X$", "Signal Efficiency", os.path.join(sys.argv[1], "all_skip"))
   else:
+    plt.rcParams["figure.figsize"] = (20,10)
     plot2DDiff(mx_my, results["all"], results["only"], "All", "Only", r"$m_Y$", "Signal Efficiency", os.path.join(sys.argv[1], "all_only"))
-    plot2DDiff(mx_my, results["all"], results["skip"], "All", "Skip", r"$m_Y$", "Signal Efficiency", os.path.join(sys.argv[1], "all_skip"))
+    mx_exclude = [min(mx_my[:,0]), max(mx_my[:,0])]
+    my_exclude = [min(mx_my[:,1]), max(mx_my[:,1])]
+    s = ~(np.isin(mx_my[:,0],mx_exclude)) & ~(np.isin(mx_my[:,1],my_exclude)) #exclude edge cases
+    plot2DDiff(mx_my[s], results["all"][s], results["skip"][s], "All", "Skip", r"$m_Y$", "Signal Efficiency", os.path.join(sys.argv[1], "all_skip"))
 
 

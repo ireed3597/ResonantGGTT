@@ -1,0 +1,14 @@
+{
+  "pass_through":0,
+  "max_epochs": 10,
+  "batch_size": 128,
+  "lr": 0.01,
+  "min_epoch": 10,
+  "grace_epochs": 15,
+  "tol": 0.001,
+  "gamma": 0.9,
+  "dropout": 0.05,
+  "n_layers": 3,
+  "n_nodes": 50,
+  "log_dir": "Outputs/NMSSM_Y_tautau_test/runs"
+}

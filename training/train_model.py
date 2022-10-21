@@ -168,7 +168,11 @@ def addScores(args, model, train_features, train_df, test_df, data, MX_MY_to_eva
     all_predictions = model.predict_proba(df[train_features])
     for i, (MX, MY) in enumerate(MX_MY_to_eval):
       #sig_proc = "NMSSM_XYH_Y_gg_H_tautau_MX_%d_MY_%d"%(MX, MY)
-      sig_proc = "XToHHggTauTau_M%d"%MX
+      #sig_proc = "NMSSM_XYH_Y_tautau_H_gg_MX_%d_MY_%d"%(MX, MY)
+      #sig_proc = "XToHHggTauTau_M%d"%MX
+
+      sig_proc = common.get_sig_proc(args.train_sig_procs[0], MX, MY)
+
       print(">", sig_proc, MX, MY)
       df["score_%s"%sig_proc] = all_predictions[i][:,1]
       assert (df["score_%s"%sig_proc] < 0).sum() == 0
@@ -229,7 +233,8 @@ def doROC(args, train_df, test_df, sig_proc, proc_dict):
 
   train_fpr, train_tpr, t = roc_curve(train_df.y, train_df["score_%s"%sig_proc], sample_weight=train_df.weight)
   test_fpr, test_tpr, t = roc_curve(test_df.y, test_df["score_%s"%sig_proc], sample_weight=test_df.weight)
-  plotROC(train_fpr, train_tpr, test_fpr, test_tpr, os.path.join(args.outdir, sig_proc))
+  train_auc, test_auc = plotROC(train_fpr, train_tpr, test_fpr, test_tpr, os.path.join(args.outdir, sig_proc))
+  return train_auc, test_auc
 
 def importance_getter(model, X=None, y=None, w=None):
   model.importance_type = "gain"
@@ -280,9 +285,14 @@ def evaluatePlotAndSave(args, proc_dict, model, train_features, train_df, test_d
 
   if not args.skipPlots:
     print(">> Plotting ROC curves")
+    metrics = {}
     for sig_proc in args.eval_sig_procs:
       print(">", sig_proc)
-      doROC(args, train_df, test_df, sig_proc, proc_dict)
+      train_auc, test_auc = doROC(args, train_df, test_df, sig_proc, proc_dict)
+      metrics["AUC/%d_%d_train_auc"%common.get_MX_MY(sig_proc)] = train_auc
+      metrics["AUC/%d_%d_test_auc"%common.get_MX_MY(sig_proc)] = test_auc
+    if hasattr(model["classifier"], "addHyperparamMetrics"):
+      model["classifier"].addHyperparamMetrics(metrics)
 
     if hasattr(model["classifier"], "train_loss"):
       print(">> Plotting loss curves")
@@ -292,12 +302,16 @@ def evaluatePlotAndSave(args, proc_dict, model, train_features, train_df, test_d
       for i, proc in enumerate(findMassOrdering(args, model, train_df)):
         plotLoss(train_loss[:,i], validation_loss[:,i], os.path.join(args.outdir, proc))
   
+  #make sure the writer is closed at this point
+  if hasattr(model["classifier"], "writer"):
+    model["classifier"].writer.close()
+
   if args.only_ROC: return None
   
-  #MX_MY_to_eval = [[mx, my] for mx in [300,400,500,600,700,800,900,1000] for my in [75,85,95]]
-  #MX_MY_to_eval += [[mx, my] for mx in [350] for my in [70,75,80,85,90,95,100,125]]
-  MX_MY_to_eval = [[mx,125] for mx in np.arange(260,1000,10)]
-  addScores(args, model, train_features, train_df, test_df, data, MX_MY_to_eval)
+  if args.extra_masses is not None:
+    with open(args.extra_masses, "r") as f:
+      MX_MY_to_eval = json.load(f)
+    addScores(args, model, train_features, train_df, test_df, data, MX_MY_to_eval)
 
   print(">> Creating output dataframe")
   if args.outputOnlyTest:
@@ -339,6 +353,7 @@ def evaluatePlotAndSave(args, proc_dict, model, train_features, train_df, test_d
   if not args.parquetSystematic: columns_to_keep += common.weights_systematics
   for column in output_df:
     if "score" in column: columns_to_keep.append(column)
+    #if "intermediate" in column: columns_to_keep.append(column)
   columns_to_keep = set(columns_to_keep)
   print(">> Outputting parquet file")
   output_df[columns_to_keep].to_parquet(os.path.join(args.outdir, args.outputName))
@@ -416,9 +431,6 @@ def main(args):
 
     assert sumw_before == train_df.weight.sum()
 
-    if args.outputModel is not None:
-      with open(args.outputModel, "wb") as f:
-        pickle.dump(model, f)
   else:
     with open(args.loadModel, "rb") as f:
       model = pickle.load(f)
@@ -427,6 +439,10 @@ def main(args):
     featureImportance(args, classifier.model, train_features, train_df[s][train_features], train_df[s]["y"], train_df[s]["weight"])
 
   evaluatePlotAndSave(args, proc_dict, model, train_features, train_df, test_df, data)
+
+  if args.outputModel is not None:
+      with open(args.outputModel, "wb") as f:
+        pickle.dump(model, f)
 
 def expandSigProcs(sig_procs):
   expanded_sig_procs = []
@@ -583,6 +599,8 @@ if __name__=="__main__":
   parser.add_argument('--loadModel', type=str, default=None)
   parser.add_argument('--outputName', type=str, default="output.parquet")
   parser.add_argument('--skipPlots', action="store_true")
+
+  parser.add_argument('--extra-masses', type=str, default=None)
 
   parser.add_argument('--parquetSystematic', action="store_true")
   parser.add_argument('--loadTransformBkg', type=str, default=None)

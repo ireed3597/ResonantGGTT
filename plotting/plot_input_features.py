@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import mplhep
 mplhep.set_style("CMS")
 plt.rcParams["figure.figsize"] = (12.5,10)
+import matplotlib.patheffects as pe
 
 import pandas as pd
 import numpy as np
@@ -25,6 +26,17 @@ colour_schemes = {
   8: ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00']
 }
 
+# colour_schemes = {
+#   4: ['#66c2a5','#fc8d62','#8da0cb','#e78ac3'],
+#   5: ['#66c2a5','#fc8d62','#8da0cb','#e78ac3','#a6d854'],
+#   6: ['#66c2a5','#fc8d62','#8da0cb','#e78ac3','#a6d854','#ffd92f'],
+#   7: ['#66c2a5','#fc8d62','#8da0cb','#e78ac3','#a6d854','#ffd92f','#e5c494']
+# }
+
+# colour_schemes = {
+#   5: ['#fbb4ae','#b3cde3','#ccebc5','#decbe4','#fed9a6']
+# }
+
 def createDefaultConfig(data, bkg, sig):
   config = OrderedDict()
   columns_to_plot = filter(lambda x: ("weight" not in x), data.columns)
@@ -37,10 +49,10 @@ def createDefaultConfig(data, bkg, sig):
     low = min([d.quantile(0.05), b.quantile(0.05), s.quantile(0.05)])
     high = max([d.quantile(0.95), b.quantile(0.95), s.quantile(0.95)])
     config[column] = {"range": [float(low),float(high)]}
-    print(column, low, high)
+    print(column.ljust(30), low, high)
 
   #exceptions
-  config["Diphoton_mass"] = {"range": [55.0, 180.0]}
+  #config["Diphoton_mass"] = {"range": [55.0, 180.0]}
 
   return config
 
@@ -89,29 +101,45 @@ def createBkgStack(bkg, column, proc_dict, group=True):
   return bkg_stack, bkg_stack_w, bkg_stack_labels
 
 def getBkgError(bkg_stack, bkg_stack_w, edges):
-  """
-  Calculate error in each bin for each process
-  Error = sqrt(N in bin) * avgw in bin
-        = sqrt(N in bin) * (sumw in bin)/(N in bin)
-        = (sumw in bin)/sqrt(N in bin)
-  Total error = Sqrt( Sum(error^2) ) = Sqrt( Sum( (sumw in bin)^2/(N in bin) ) )
-  """
+  # """
+  # Calculate error in each bin for each process
+  # Error = sqrt(N in bin) * avgw in bin
+  #       = sqrt(N in bin) * (sumw in bin)/(N in bin)
+  #       = (sumw in bin)/sqrt(N in bin)
+  # Total error = Sqrt( Sum(error^2) ) = Sqrt( Sum( (sumw in bin)^2/(N in bin) ) )
+  # """
   
-  sumws = []
-  errors = []  
-  for i, bkg in enumerate(bkg_stack):
-    N, edges = np.histogram(bkg, bins=edges)
-    sumw, edges = np.histogram(bkg, bins=edges, weights=bkg_stack_w[i])
+  # sumws = []
+  # errors = []  
+  # for i, bkg in enumerate(bkg_stack):
+  #   N, edges = np.histogram(bkg, bins=edges)
+  #   sumw, edges = np.histogram(bkg, bins=edges, weights=bkg_stack_w[i])
     
-    sumws.append(sumw)
-    errors.append(np.nan_to_num(sumw / np.sqrt(N)))
+  #   sumws.append(sumw)
+  #   errors.append(np.nan_to_num(sumw / np.sqrt(N)))
 
-  sumw = np.array(sumws)
-  errors = np.array(errors)
+  # sumw = np.array(sumws)
+  # errors = np.array(errors)
   
-  sumw = np.sum(sumw, axis=0)
-  error = np.sqrt(np.sum(errors**2, axis=0))
-  return sumw, error  
+  # sumw = np.sum(sumw, axis=0)
+  # error = np.sqrt(np.sum(errors**2, axis=0))
+
+  sumws = []
+  sumw2s = []  
+  for i, bkg in enumerate(bkg_stack):
+    sumw, edges = np.histogram(bkg, bins=edges, weights=bkg_stack_w[i])
+    sumw2, edges = np.histogram(bkg, bins=edges, weights=bkg_stack_w[i]**2)
+    sumws.append(sumw)
+    sumw2s.append(sumw2)
+  sumws = np.array(sumws)
+  sumw2s = np.array(sumw2s)
+  
+  sumw = np.sum(sumws, axis=0)
+  error = np.sqrt(np.sum(sumw2s, axis=0))
+  #print(sumw)
+  #print(error)
+
+  return sumw, error
 
 def decayToMath(channel):
   if channel == "gg":
@@ -126,7 +154,8 @@ def getSigLabel(sig_proc):
     H_decay = decayToMath(split_name[5])
     X_mass = int(split_name[7])
     Y_mass = int(split_name[9])
-    label = r"$X_{%d} \rightarrow Y_{%d}(\rightarrow %s)  H(\rightarrow %s)$"%(X_mass, Y_mass, Y_decay, H_decay)
+    #label = r"$X_{%d} \rightarrow Y_{%d}(\rightarrow %s)  H(\rightarrow %s)$"%(X_mass, Y_mass, Y_decay, H_decay)
+    label = r"$X_{%d} \rightarrow Y_{%d}(\rightarrow %s)  H$"%(X_mass, Y_mass, Y_decay)
   elif "radion" in sig_proc:
     X_mass = int(sig_proc.split("M")[1].split("_")[0])
     label = r"$X_{%d} \rightarrow HH \rightarrow \gamma\gamma\tau\tau$"%X_mass
@@ -149,7 +178,7 @@ def adjustLimits(x, ys, ax):
   
   #top side
   ybound = ylow + (yhigh-ylow)*0.60
-  max_y = np.array(ys).max()
+  max_y = np.nan_to_num(ys).max()
   top_distance_to_move = ty(max_y) - ybound
   
   #right side
@@ -167,10 +196,14 @@ def adjustLimits(x, ys, ax):
     ax.legend(ncol=3, loc="upper right", markerfirst=False)
     ax.set_ylim(top = ty_inv(yhigh + top_distance_to_move))
 
-def plot_feature(data, bkg, sig, proc_dict, sig_procs, column, nbins, feature_range, save_path, auto_legend=True):
+def plot_feature(data, bkg, sig, proc_dict, sig_procs, column, nbins, feature_range, save_path, no_legend=False, only_legend=False):
   if type(sig_procs) != list: sig_procs = [sig_procs]
 
-  plt.rcParams["figure.figsize"] = (12.5,10)
+  if not only_legend: 
+    plt.rcParams["figure.figsize"] = (12.5,10)
+  else:
+    assert no_legend
+    plt.rcParams["figure.figsize"] = (12.5*2,10)
   
   f, axs = plt.subplots(2, sharex=True, gridspec_kw={'height_ratios': [3, 1]})
   
@@ -200,73 +233,88 @@ def plot_feature(data, bkg, sig, proc_dict, sig_procs, column, nbins, feature_ra
   axs[1].set_ylabel("Data / MC")
 
   plt.sca(axs[0])
-  mplhep.cms.label(llabel="Work in Progress", data=True, lumi=138, loc=0)
+  mplhep.cms.label(llabel="Work in Progress", data=True, lumi=common.tot_lumi, loc=0)
 
-  os.makedirs(save_path, exist_ok=True)
-  for sig_proc in sig_procs:
-    try: _ = [b.remove() for b in bars]
-    except: pass
-    sig_hist, edges = np.histogram(sig[sig.process_id==proc_dict[sig_proc]][column], bins=nbins, range=feature_range, weights=sig[sig.process_id==proc_dict[sig_proc]]["weight"])
-    sig_sf = data_hist.max() / sig_hist.max()
-    counts, bins, bars = axs[0].hist(edges[:-1], edges, weights=sig_hist*sig_sf, label=getSigLabel(sig_proc), histtype='step', color='r', lw=3, zorder=9) #signal
-
-    if not auto_legend: axs[0].legend()
-    
-    axs[0].set_yscale("linear")
-    axs[0].relim()
-    axs[0].autoscale()
-    axs[0].get_ylim()
-    if auto_legend: adjustLimits(bin_centres, [sig_hist*sig_sf, data_hist], axs[0])
-    plt.savefig("%s/%s.png"%(save_path, sig_proc))
-    #plt.savefig("%s.pdf"%save_path)
-
-    axs[0].set_yscale("log")
-    axs[0].relim()
-    axs[0].autoscale()
-    axs[0].get_ylim()
-    if auto_legend: adjustLimits(bin_centres, [sig_hist*sig_sf, data_hist], axs[0])
-    plt.savefig("%s/%s_log.png"%(save_path, sig_proc))
-    #plt.savefig("%s_log.pdf"%save_path)
-
+  # os.makedirs(save_path, exist_ok=True)
   # for sig_proc in sig_procs:
-  #   print(sig_proc)
-  #   #try: _ = [b.remove() for b in bars]
-  #   #except: pass
+  #   try: _ = [b.remove() for b in bars]
+  #   except: pass
   #   sig_hist, edges = np.histogram(sig[sig.process_id==proc_dict[sig_proc]][column], bins=nbins, range=feature_range, weights=sig[sig.process_id==proc_dict[sig_proc]]["weight"])
   #   sig_sf = data_hist.max() / sig_hist.max()
-  #   #counts, bins, bars = axs[0].hist(edges[:-1], edges, weights=sig_hist*sig_sf, label=getSigLabel(sig_proc), histtype='step', lw=3, zorder=9) #signal
-  #   axs[0].hist(edges[:-1], edges, weights=sig_hist*sig_sf, label=getSigLabel(sig_proc), histtype='step', lw=3, zorder=9) #signal
+  #   counts, bins, bars = axs[0].hist(edges[:-1], edges, weights=sig_hist*sig_sf, label=getSigLabel(sig_proc), histtype='step', color='r', lw=3, zorder=9) #signal
 
-  # if not auto_legend: axs[0].legend()
+  #   if not auto_legend: axs[0].legend()
+    
+  #   axs[0].set_yscale("linear")
+  #   axs[0].relim()
+  #   axs[0].autoscale()
+  #   axs[0].get_ylim()
+  #   if auto_legend: adjustLimits(bin_centres, [sig_hist*sig_sf, data_hist], axs[0])
+  #   plt.savefig("%s/%s.png"%(save_path, sig_proc))
+  #   #plt.savefig("%s.pdf"%save_path)
+
+  #   axs[0].set_yscale("log")
+  #   axs[0].relim()
+  #   axs[0].autoscale()
+  #   axs[0].get_ylim()
+  #   if auto_legend: adjustLimits(bin_centres, [sig_hist*sig_sf, data_hist], axs[0])
+  #   plt.savefig("%s/%s_log.png"%(save_path, sig_proc))
+  #   #plt.savefig("%s_log.pdf"%save_path)
+
+  for sig_proc in sig_procs:
+    #print(sig_proc)
+    #try: _ = [b.remove() for b in bars]
+    #except: pass
+    sig_hist, edges = np.histogram(sig[sig.process_id==proc_dict[sig_proc]][column], bins=nbins, range=feature_range, weights=sig[sig.process_id==proc_dict[sig_proc]]["weight"])
+    #sig_sf = data_hist.max() / sig_hist.max()
+    sig_sf = max([bkg_sumw.max(), data_hist.max()]) / sig_hist.max()
+    #counts, bins, bars = axs[0].hist(edges[:-1], edges, weights=sig_hist*sig_sf, label=getSigLabel(sig_proc), histtype='step', lw=3, zorder=9) #signal
+    axs[0].hist(edges[:-1], edges, weights=sig_hist*sig_sf, label=getSigLabel(sig_proc), histtype='step', lw=2, path_effects=[pe.Stroke(linewidth=5, foreground='w'), pe.Normal()], zorder=9) #signal
+
+  if only_legend: 
+    axs[0].legend(ncol=int((2+len(sig_procs)+len(bkg_stack))/3), frameon=True, loc="center")
   
-  # axs[0].set_yscale("linear")
-  # axs[0].relim()
-  # axs[0].autoscale()
-  # axs[0].get_ylim()
-  # if auto_legend: adjustLimits(bin_centres, [sig_hist*sig_sf, data_hist], axs[0])
-  # plt.savefig("%s_%s.png"%(save_path, sig_proc))
-  # #plt.savefig("%s.pdf"%save_path)
+  axs[0].set_yscale("linear")
+  if not no_legend:
+    axs[0].relim()
+    axs[0].autoscale()
+    axs[0].get_ylim()
+    adjustLimits(bin_centres, [sig_hist*sig_sf, data_hist, bkg_sumw], axs[0])
+  plt.savefig("%s_%s.png"%(save_path, sig_proc))
+  #plt.savefig("%s.pdf"%save_path)
 
-  # axs[0].set_yscale("log")
-  # axs[0].relim()
-  # axs[0].autoscale()
-  # axs[0].get_ylim()
-  # if auto_legend: adjustLimits(bin_centres, [sig_hist*sig_sf, data_hist], axs[0])
-  # plt.savefig("%s_%s_log.png"%(save_path, sig_proc))
-  # #plt.savefig("%s_log.pdf"%save_path)
+  axs[0].set_yscale("log")
+  if not no_legend:
+    axs[0].relim()
+    axs[0].autoscale()
+    axs[0].get_ylim()
+    adjustLimits(bin_centres, [sig_hist*sig_sf, data_hist, bkg_sumw], axs[0])
+  plt.savefig("%s_%s_log.png"%(save_path, sig_proc))
+  #plt.savefig("%s_log.pdf"%save_path)
 
   plt.close()
 
 def plot(data, bkg, sig, proc_dict, args):
+  if args.no_legend:
+    data["no_legend"] = np.random.randint(0, 2, size=len(data))
+    bkg["no_legend"] = np.random.randint(0, 2, size=len(bkg))
+    sig["no_legend"] =np.random.randint(0, 2, size=len(sig))
+
   cfg = getConfig(data, bkg, sig, args)
 
   for column in tqdm(cfg.keys()):
-  #for column in ["Diphoton_phi", "Diphoton_pt_mgg"]:
-  #for column in ["LeadPhoton_ditau_dR","SubleadPhoton_ditau_dR","LeadPhoton_tau_candidate_1_dR","LeadPhoton_tau_candidate_1_dR","SubleadPhoton_tau_candidate_1_dR","SubleadPhoton_tau_candidate_2_dR"]:
-    nbins = 50
+    print(column)
+    nbins = 20
     feature_range = cfg[column]["range"]
     save_path = "%s/%s"%(args.output, column)
-    plot_feature(data, bkg, sig, proc_dict, args.sig_procs, column, nbins, feature_range, save_path)
+    plot_feature(data, bkg, sig, proc_dict, args.sig_procs, column, nbins, feature_range, save_path, no_legend=args.no_legend)
+
+  if args.no_legend:
+    column = "no_legend"
+    nbins = 20
+    feature_range = cfg[column]["range"]
+    save_path = "%s/%s"%(args.output, column)
+    plot_feature(data, bkg, sig, proc_dict, args.sig_procs, column, nbins, feature_range, save_path, no_legend=args.no_legend, only_legend=True)
 
 if __name__=="__main__":
   parser = argparse.ArgumentParser()
@@ -276,8 +324,11 @@ if __name__=="__main__":
   parser.add_argument('--output', '-o', type=str, default="plots")
   parser.add_argument('--config', '-c', type=str)
   parser.add_argument('--norm', default=False, action="store_true")
+  parser.add_argument('--no-legend', default=False, action="store_true")
   parser.add_argument('--weight', default="weight_central", type=str)
   args = parser.parse_args()
+
+  #args.sig_procs = args.sig_procs[:1]
 
   with open(args.summary, "r") as f:
     proc_dict = json.load(f)["sample_id_map"]
@@ -289,15 +340,9 @@ if __name__=="__main__":
   
   print(">> Loading dataframes")  
   
-  from pyarrow.parquet import ParquetFile
-  import pyarrow as pa
-  pf = ParquetFile(args.input) 
-  iter = pf.iter_batches(batch_size = 1000)
-  first_ten_rows = next(iter) 
-  df = pa.Table.from_batches([first_ten_rows]).to_pandas()
-  columns = list(filter(lambda x: "weight" not in x, df.columns)) + [args.weight]
-  columns_to_exclude = ["event", "MX", "MY"]
-  columns = list(set(columns).difference(columns_to_exclude))
+  columns = common.getColumns(args.input)
+  columns_to_exclude = ["year", "event", "MX", "MY"]
+  columns = list(filter(lambda x: ("weight" not in x) and (x not in columns_to_exclude), columns)) + [args.weight]
   df = pd.read_parquet(args.input, columns=columns)
 
   df.rename({args.weight: "weight"}, axis=1, inplace=True)

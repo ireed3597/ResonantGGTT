@@ -1,36 +1,74 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.optimize import root
 from scipy.optimize import bisect
-from scipy.optimize import minimize_scalar
 from scipy.optimize import minimize
+from scipy.optimize import minimize_scalar
 from scipy.stats import chi2
 from scipy.stats import expon
 from scipy.stats import norm
-from scipy.integrate import quad
 
 from tqdm import tqdm
 
 import warnings
 
+from numba import jit
+
 """---Limit Setting------------------------------------------------------------------------------------------------"""
 
-def calculateExpectedCLs(mu, s, b):
+import scipy.interpolate as spi
+class Chi2CdfLookup:
+  def __init__(self, granularity=0.001):
+    l = 1
+    h = 10
+    x = np.arange(l, h, granularity)
+    self.cdf = spi.interp1d(x, chi2.cdf(x, 1), kind='linear', fill_value=tuple(chi2.cdf([l,h], 1)), bounds_error=False)
+
+  def __call__(self, x):
+    return self.cdf(x)
+
+chi2_cdf = Chi2CdfLookup()
+
+# def calculateExpectedCLs(mu, s, b, b_err=None):
+#   """
+#   Calculates CLs for a given mu and expected number of signal and background events, s and b.
+#   Will calculate for a single category where s and b are input as just numbers.
+#   Will also calculate for multiple categories where s and b are arrays (entry per category).
+#   Optionally include uncertainty in background as b_err (1 sigma deviation).
+#   """
+#   if b_err is None:
+#     b_err = np.zeros_like(s)
+#   s, b, b_err = np.array(s), np.array(b), np.array(b_err)
+#   assert s.shape == b.shape == b_err.shape
+
+#   eta = ( -b-mu*s-b_err**2 + np.sqrt( -4*mu*s*b_err**2 + (b+mu*s+b_err**2)**2 ) ) / (2*(b_err+1e-8))
+#   #qmu = -2 * np.sum( b*(np.log(mu*s+b) - np.log(b)) - mu*s )
+#   qmu = -2 * np.sum( b*( np.log(mu*s+b+eta*b_err) - np.log(b) ) - (mu*s+eta*b_err) - (eta**2/2) )
+
+#   CLs = 1 - chi2_cdf(qmu)
+#   return CLs
+
+# the bkg uncertainty is buggy I think so for now, it is not enabled
+# but have option (hard-coded) to inflate bkg by +1 sigma
+def calculateExpectedCLs(mu, s, b, b_err=None):
   """
   Calculates CLs for a given mu and expected number of signal and background events, s and b.
   Will calculate for a single category where s and b are input as just numbers.
-  Will also calculate for multiple categories where s and b are arrays (entry per category)
+  Will also calculate for multiple categories where s and b are arrays (entry per category).
+  Optionally include uncertainty in background as b_err (1 sigma deviation).
   """
-  s, b = np.array(s), np.array(b)
+  s, b, b_err = np.array(s), np.array(b), np.array(b_err)
+  assert s.shape == b.shape == b_err.shape
+
+  #b += b_err #inflate bkg
   qmu = -2 * np.sum( b*(np.log(mu*s+b) - np.log(b)) - mu*s )
-  CLs = 1 - chi2.cdf(qmu, 1)
+
+  CLs = 1 - chi2_cdf(qmu)
   return CLs
 
-#def calculateExpectedLimit(s, b, rlow=0, rhigh=0.01, plot=False):
-def calculateExpectedLimit(s, b, rlow=0, rhigh=100.0, plot=False):
-  if calculateExpectedCLs(rhigh, s, b) < 0.05:
-    return bisect(lambda x: calculateExpectedCLs(x, s, b)-0.05, rlow, rhigh, rtol=0.0001)
+def calculateExpectedLimit(s, b, b_err, rlow=0, rhigh=100.0, plot=False):
+  if calculateExpectedCLs(rhigh, s, b, b_err) < 0.05:
+    return bisect(lambda x: calculateExpectedCLs(x, s, b, b_err)-0.05, rlow, rhigh, rtol=0.001)
   else:
     warnings.warn("Limit above rhigh = %f"%rhigh)
     return rhigh
@@ -51,12 +89,16 @@ def calculateExpectedLimit(s, b, rlow=0, rhigh=100.0, plot=False):
 class ExpFunc():
   def __init__(self, N, norm, l, l_up=0, l_down=0):
     self.l = l
-    self.l_up = l_up
-    self.l_down = l_down
+    #self.l_up = l_up
+    #self.l_down = l_down
+    self.l_up = l
+    self.l_down = l
 
     self.N = N
     self.N_up = N + np.sqrt(N)
     self.N_down = N - np.sqrt(N)
+    #self.N_up = N
+    #self.N_down = N
 
     self.norm = norm
   
@@ -72,9 +114,15 @@ class ExpFunc():
      
     return np.min(fluctuations, axis=0), np.max(fluctuations, axis=0)
 
+  # def getNEventsInSR(self, sr):
+  #   nominal = intExp(sr[0], sr[1], self.l, self.N/self.norm(self.l))
+  #   return nominal
+
   def getNEventsInSR(self, sr):
     nominal = intExp(sr[0], sr[1], self.l, self.N/self.norm(self.l))
-    return nominal
+    return nominal, nominal*(self.N_up/self.N - 1)
+    #nonminal, up, down = self.getNEventsInSR_CI(sr)
+    #return nonminal, (up-down)/2
 
   def getNEventsInSR_CI(self, sr):
     nominal = intExp(sr[0], sr[1], self.l, self.N/self.norm(self.l))
@@ -89,7 +137,8 @@ class ExpFunc():
 def intExp(a, b, l, N=1):
   return (N/l) * (np.exp(-l*a) - np.exp(-l*b))
 
-def bkgNLL(l, bkg, pres, sr):
+#@jit(nopython=True)
+def bkgNLL(l, mass, pres, sr):
   """
   Negative log likelihood from an unbinned fit of the background to an exponential.
   The exponential probability distribution: P(m, l) = [1/N(l)] * exp(-l*m)
@@ -101,20 +150,39 @@ def bkgNLL(l, bkg, pres, sr):
 
   WARNING: weighting not implemented yet
   """
+  l = np.abs(l)
   a, b, c, d = pres[0], sr[0], sr[1], pres[1]
   N = -(1/l)*(np.exp(-l*b)-np.exp(-l*a)+np.exp(-l*d)-np.exp(-l*c))
-  return np.mean(l*bkg.mass+np.log(N))
+  return np.mean(l*mass+np.log(N))
 
-def gradNLL(l, bkg, pres, sr):
+#@jit(nopython=True)
+def gradNLL(l, mass, pres, sr):
+  l = np.abs(l)
   a, b, c, d = pres[0], sr[0], sr[1], pres[1]
 
   N = -(1/l)*(np.exp(-l*b)-np.exp(-l*a)+np.exp(-l*d)-np.exp(-l*c))
   dN_dl = -(1/l)*N + (1/l)*(b*np.exp(-l*b)-a*np.exp(-l*a)+d*np.exp(-l*d)-c*np.exp(-l*c))
-  return np.mean(bkg.mass + dN_dl/N)
+  return np.mean(mass + dN_dl/N)
+
+#@jit(nopython=True)
+def grad2NLL(l, mass, pres, sr):
+  l = np.abs(l)
+  a, b, c, d = pres[0], sr[0], sr[1], pres[1]
+
+  N = -(1/l)*(np.exp(-l*b)-np.exp(-l*a)+np.exp(-l*d)-np.exp(-l*c))
+  dN_dl = -(1/l)*N + (1/l)*(b*np.exp(-l*b)-a*np.exp(-l*a)+d*np.exp(-l*d)-c*np.exp(-l*c))
+  dN2_dl2 = -(2/l)*dN_dl - (1/l)*(b*b*np.exp(-l*b)-a*a*np.exp(-l*a)+d*d*np.exp(-l*d)-c*c*np.exp(-l*c))
+  return (1/len(mass)) * ((1/N)*dN2_dl2 - (1/N**2)*dN_dl**2)
 
 def failedBkgFit(bkg, res, pres):
+  m_min, m_max = min(bkg.mass), max(bkg.mass)
   print("Nbkg = %f, l_fit = %f \n"%(bkg.weight.sum(), res.x[0]) + str(res))
-  plt.hist(bkg.mass, weights=bkg.weight, range=pres, bins=50)
+
+  n, edges = np.histogram(bkg.mass, range=(pres[0], pres[1]), bins=4*int(pres[1]-pres[0]), weights=bkg.weight)
+  plt.errorbar(edges[:-1], n, np.sqrt(n), fmt='o')
+  x = np.linspace(min(bkg.mass),max(bkg.mass),100)
+  N = n[0] / np.exp(-x[0]*abs(res.x[0]))
+  plt.plot(x, N*np.exp(-x*abs(res.x[0])))
   plt.savefig("failed_bkg_fit.png")
   plt.clf()
 
@@ -124,42 +192,31 @@ def fitBkg(bkg, pres, sr, l_guess, counting_sr=None):
   if pres[1] < sr[1]: sr[1] = pres[1]
   assert sr[1]-sr[0] > 0
 
-  #fit only in sidebands
-  m = bkg.mass
-  bkg = bkg[((m>=pres[0])&(m<=pres[1])) & ~((m>=sr[0])&(m<=sr[1]))]
-  
   norm = lambda l: (intExp(pres[0], sr[0], l) + intExp(sr[1], pres[1], l))
 
   if len(bkg) == 0:
     return ExpFunc(0, norm, l_guess, l_guess, l_guess), 0.0
 
-  res = minimize(bkgNLL, l_guess, args=(bkg, pres, sr), jac=gradNLL)
-  assert res.success, failedBkgFit(bkg, res, pres)
+  res = minimize(bkgNLL, l_guess, bounds=[(0.0001, 1)], args=(bkg.mass.to_numpy(), pres, sr), jac=gradNLL, tol=1e-4)
   l_fit = res.x[0]
   
-  hess_inv = res.hess_inv[0][0]
-
+  hess_inv = res.hess_inv.todense()[0][0]
   #estimate error on l from hessian inverse
   l_up = l_fit + np.sqrt(hess_inv/len(bkg))
   l_down = l_fit - np.sqrt(hess_inv/len(bkg))
-  #print(l_fit, l_up, l_down)
-
-  #calculate error on l by finding values of l where delta NLL = 0.5
-  #f = lambda x: len(bkg)*(bkgNLL(x, bkg, pres, sr)-bkgNLL(l_fit, bkg, pres, sr)) - 0.5
-  #l_up = root(f, l_up, tol=0.01).x[0]
-  #l_down = root(f, l_down, tol=0.01).x[0]
-  #print(l_up, l_down)
 
   #bkg_func(m) = No. bkg events / GeV at a given value of m
   N = float(sum(bkg.weight))
   bkg_func = ExpFunc(N, norm, l_fit, l_up, l_down)
 
+  #plotBkgFit(bkg, bkg_func, pres, sr, saveas="bkg_fits/bkg_fit_%d.png"%np.random.randint(0, 1000))
+
   #Number of bkg events in signal region found from fit
-  nbkg_sr = bkg_func.getNEventsInSR(counting_sr)
+  nbkg_sr, nbkg_sr_err = bkg_func.getNEventsInSR(counting_sr)
 
-  return bkg_func, nbkg_sr
+  return bkg_func, nbkg_sr, nbkg_sr_err
 
-def performFit(sig, bkg, pres=(100,180), sr=(120,130), l_guess=0.1):
+def performFit(sig, bkg, pres=(100,180), sr=(120,130), l_guess=0.01):
   """
   Return the number of signal and background events in the signal region.
   Number of signal events found by simply summing the number found in signal region.
@@ -169,6 +226,8 @@ def performFit(sig, bkg, pres=(100,180), sr=(120,130), l_guess=0.1):
   pres: The preselection window on the diphoton mass
   sr: The signal region
   l_guess: An initial guess for the l parameter in the exponential fit
+
+  IMPORTANT: bkg should only include events in the sidebands
   """
 
   if len(sig) > 0:
@@ -177,18 +236,18 @@ def performFit(sig, bkg, pres=(100,180), sr=(120,130), l_guess=0.1):
     counting_sr = sr
   
   #background fit
-  bkg_func, nbkg_sr = fitBkg(bkg, pres, sr, l_guess, counting_sr)
+  bkg_func, nbkg_sr, nbkg_sr_err = fitBkg(bkg, pres, sr, l_guess, counting_sr)
 
   #just sum signal events in signal region
   nsig_sr = sig.loc[(sig.mass>counting_sr[0])&(sig.mass<counting_sr[1]), "weight"].sum()
 
-  return nsig_sr, nbkg_sr, bkg_func
+  return nsig_sr, nbkg_sr, nbkg_sr_err, bkg_func
 
 def plotBkgFit(bkg, bkg_func, pres, sr, saveas="bkg_fit.png"):
   bkg = bkg[((bkg.mass>pres[0])&(bkg.mass<sr[0])) | ((bkg.mass>sr[1])&(bkg.mass<pres[1]))]
     
   m = np.linspace(pres[0], pres[1], 100)
-  n, bin_edges = np.histogram(bkg.mass, bins=pres[1]-pres[0], range=(pres[0], pres[1]))
+  n, bin_edges = np.histogram(bkg.mass, bins=int(pres[1]-pres[0]), range=(pres[0], pres[1]))
   bin_centers = np.array( (bin_edges[:-1] + bin_edges[1:]) / 2 )
   err = np.sqrt(n)
   err[err==0] = 1
@@ -246,97 +305,112 @@ def formBoundariesGrid(bkg, low, high, step, nbounds, include_lower):
   """
   bkg_select = bkg[bkg.score >= low]
   bkg_select.sort_values("score", ascending=False, inplace=True)
-  print(bkg_select.score.iloc[-1])
-  #bkg_select = bkg_select.iloc[:50]
+  #pd.set_option('precision',10)
+  #print(bkg_select.iloc[:12]["score"])
+  
   poss_bounds = np.arange(1, len(bkg_select), 1)
+  # if len(bkg_select) < 160:
+  #   poss_bounds = np.concatenate([np.arange(1, 30, 1), np.arange(30, 40, 2), np.arange(40, len(bkg_select), 4)])
+  # else:
+  #   poss_bounds = np.concatenate([np.arange(1, 30, 1), np.arange(30, 40, 2), np.arange(40, 160, 4), np.arange(160, len(bkg_select), 8)])
+  #poss_bounds = np.concatenate([np.arange(1, 20, 1), np.arange(20, 40, 2), np.arange(40, 80, 4), np.arange(80, len(bkg_select), 8)])
+  #poss_bounds = np.concatenate([np.arange(1, 40, 1), np.arange(40, 80, 4), np.arange(80, len(bkg_select), 8)])
+  print(poss_bounds)
 
-  grid = [[i] for i in poss_bounds if i >= 10]
+  t = 10
+
+  grid = [[i] for i in poss_bounds if i >= t]
   i=1
   while i < nbounds:
     extension = []
     for bound in grid:
       for j in poss_bounds:
-        if j - bound[-1] >= 10:
+        if j - bound[-1] >= t:
           extension.append(bound+[j])
     i += 1
     grid = extension
   grid = np.array(grid)[:,::-1]
+  print(grid)
 
-  grid = bkg_select.score.to_numpy()[grid] - 1e-8
+  #grid = bkg_select.score.to_numpy()[grid] - 1e-10
+  grid = (bkg_select.score.to_numpy()[grid-1] + bkg_select.score.to_numpy()[grid]) / 2
 
   grid = np.concatenate((grid, np.ones(len(grid)).reshape(-1, 1)), axis=1) #add 1 to end of every boundary set
   if include_lower: grid = np.concatenate((np.zeros(len(grid)).reshape(-1, 1), grid), axis=1) #add 0 to end of every boundary set
 
   return grid
 
-known_invalid = []
-known_good = []
+# known_invalid = []
+# known_good = []
+# def isValidBoundaries(bkg, sig, pres, sr, boundaries, threshold=10):
+#   """
+#   Checks whethere a given set of boundaries is valid.
+#   A set is invalid if there is less than threshold sig events or bkg events in sidebands in any of the categories.
+#   A list of good and bad categories (boundary pairs) are saved so that the same fit does not have to be redone.
+#   """
+#   ncats = len(boundaries) - 1
 
-def isValidBoundaries(bkg, sig, pres, sr, boundaries, threshold=10):
-  """
-  Checks whethere a given set of boundaries is valid.
-  A set is invalid if there is less than threshold sig events or bkg events in sidebands in any of the categories.
-  A list of good and bad categories (boundary pairs) are saved so that the same fit does not have to be redone.
-  """
-  ncats = len(boundaries) - 1
+#   boundary_pairs = [[boundaries[i], boundaries[i+1]] for i in range(len(boundaries)-1)]
+#   for pair in boundary_pairs:
+#     if pair in known_invalid:
+#       return False
 
-  boundary_pairs = [[boundaries[i], boundaries[i+1]] for i in range(len(boundaries)-1)]
-  for pair in boundary_pairs:
-    if pair in known_invalid:
-      return False
+#   #helper function to grab part of dataframe belonging to a pair of boundaries (a category)
+#   select = lambda df, pair: (df.score > pair[0]) & (df.score <= pair[1])
 
-  #helper function to grab part of dataframe belonging to a pair of boundaries (a category)
-  select = lambda df, pair: (df.score > pair[0]) & (df.score <= pair[1])
+#   for pair in boundary_pairs:
+#     if pair in known_good: continue
 
-  for pair in boundary_pairs:
-    if pair in known_good: continue
+#     bm = bkg.mass
+#     sidebands = ((bm > pres[0]) & (bm < sr[0])) | ((bm > sr[1]) & (bm < pres[1]))
 
-    bm = bkg.mass
-    sidebands = ((bm > pres[0]) & (bm < sr[0])) | ((bm > sr[1]) & (bm < pres[1]))
+#     nbkg = (select(bkg, pair) & sidebands).sum() #nbkg events in sidebands
+#     nsig = select(sig, pair).sum()
 
-    nbkg = (select(bkg, pair) & sidebands).sum() #nbkg events in sidebands
-    nsig = select(sig, pair).sum()
+#     #if (nbkg < 10) | (nsig < 10):
+#     if (nbkg < 10):
+#       known_invalid.append(pair)
+#       return False
+#     else:
+#       known_good.append(pair)
 
-    #if (nbkg < 10) | (nsig < 10):
-    if (nbkg < 10):
-      known_invalid.append(pair)
-      return False
-    else:
-      known_good.append(pair)
-
-  return True
+#   return True
 
 def getBoundariesPerformance(bkg, sig, pres, sr, boundaries):
   nsigs = []
   nbkgs = []
+  nbkg_errs = []
   ncats = len(boundaries)-1
 
   #return dataframe with only events within category
   select = lambda df, i: df[(df.score > boundaries[i]) & (df.score <= boundaries[i+1])]
 
   for i in range(ncats):
-    nsig, nbkg, bkg_func = performFit(select(sig, i), select(bkg, i), pres, sr)
+    nsig, nbkg, nbkg_err, bkg_func = performFit(select(sig, i), select(bkg, i), pres, sr)
     if nbkg == 0: nbkg = 0.0001
     nsigs.append(nsig)
     nbkgs.append(nbkg)
+    nbkg_errs.append(nbkg_err)
 
-  limit = calculateExpectedLimit(nsigs, nbkgs)
+  limit = calculateExpectedLimit(nsigs, nbkgs, nbkg_errs)
   ams = AMS(nsigs, nbkgs)
 
-  return limit, ams
+  return limit, ams, nsigs, nbkgs
 
 def parallel(bkg, sig, pres, sr, boundaries):
   """Function to be run in parallel mode"""
-  if isValidBoundaries(bkg, sig, pres, sr, boundaries):
-   return getBoundariesPerformance(bkg, sig, pres, sr, boundaries)
-  else:
-   return -1, -1
+  # if isValidBoundaries(bkg, sig, pres, sr, boundaries):
+  #  return getBoundariesPerformance(bkg, sig, pres, sr, boundaries)
+  # else:
+  #  return -1, -1
+  return getBoundariesPerformance(bkg, sig, pres, sr, boundaries)
 
-def optimiseBoundary(bkg, sig, pres=(100,150), sr=(120,130), low=0.05, high=1.0, step=0.01, nbounds=1, include_lower=False):
+def optimiseBoundary(bkg, sig, pres=(100,180), sr=(115,135), low=0.05, high=1.0, step=0.01, nbounds=1, include_lower=False):
   bm = bkg.mass
-  sidebands = ((bm > pres[0]) & (bm < sr[0])) | ((bm > sr[1]) & (bm < pres[1]))
+  sidebands = ((bm>=pres[0])&(bm<=pres[1])) & ~((bm>=sr[0])&(bm<=sr[1]))
+  bkg = bkg[sidebands]
 
-  boundaries_grid = formBoundariesGrid(bkg[sidebands], low, high, step, nbounds, include_lower)
+  boundaries_grid = formBoundariesGrid(bkg, low, high, step, nbounds, include_lower)
   valid_boundaries = []
   limits = []
   amss = []
@@ -345,27 +419,31 @@ def optimiseBoundary(bkg, sig, pres=(100,150), sr=(120,130), low=0.05, high=1.0,
   print("Number of boundaries in grid: %d"%n)
 
   """Parallel approach"""
-  # from concurrent import futures
-  # import os
-  # with futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
-  #   iterables = [[bkg]*n, [sig]*n, [pres]*n, [sr]*n, boundaries_grid]
-  #   func = parallel
-  #   chunksize = int(n / (os.cpu_count() * 4))
-  #   if chunksize == 0: chunksize = 1
-  #   for boundaries, result in zip(boundaries_grid, executor.map(func, *iterables, chunksize=chunksize)):
-  #     if result[0] != -1:
-  #       valid_boundaries.append(boundaries)
-  #       limits.append(result[0])
-  #       amss.append(result[1])
+  from concurrent import futures
+  import os
+  #with futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+  with futures.ProcessPoolExecutor(max_workers=32) as executor:
+    print("Making iterables")
+    iterables = [[bkg]*n, [sig]*n, [pres]*n, [sr]*n, boundaries_grid]
+    func = parallel
+    chunksize = int(n / (os.cpu_count() * 4))
+    if chunksize == 0: chunksize = 1
+    if chunksize > 1000: chunksize = 1000
+    for boundaries, result in tqdm(zip(boundaries_grid, executor.map(func, *iterables, chunksize=chunksize)), total=n):
+      #print("boo")
+      if result[0] != -1:
+        valid_boundaries.append(boundaries)
+        limits.append(result[0])
+        amss.append(result[1])
   """-----------------"""
 
   """Single core approach"""
-  for boundaries in tqdm(boundaries_grid):
-    if isValidBoundaries(bkg, sig, pres, sr, boundaries):
-      valid_boundaries.append(boundaries)
-      limit, ams = getBoundariesPerformance(bkg, sig, pres, sr, boundaries)
-      limits.append(limit)
-      amss.append(ams)
+  # for boundaries in tqdm(boundaries_grid):
+  #   #if isValidBoundaries(bkg, sig, pres, sr, boundaries):
+  #   valid_boundaries.append(boundaries)
+  #   limit, ams, nsigs, nbkgs = getBoundariesPerformance(bkg, sig, pres, sr, boundaries)
+  #   limits.append(limit)
+  #   amss.append(ams)
   """--------------------"""
 
   limits = np.array(limits)
@@ -452,13 +530,13 @@ def testFit(nbkg=100, nsig=100, l=0.05, pres=(100,180), sr=(120,130)):
   true_nsig = sum(sig[(sig.mass>sr[0])&(sig.mass<sr[1])].weight)
   true_nbkg = sum(bkg[(bkg.mass>sr[0])&(bkg.mass<sr[1])].weight)
 
-  fit_nsig, fit_nbkg, bkg_func = performFit(sig, bkg, pres, sr)
+  fit_nsig, fit_nbkg, fit_nbkg_err, bkg_func = performFit(sig, bkg, pres, sr)
   print("True (fit) nsig: %d (%f)"%(true_nsig, fit_nsig))
   print("True (fit) nbkg: %d (%f)"%(true_nbkg, fit_nbkg))
 
   plotBkgFit(bkg, bkg_func, pres, sr, saveas="test_fit_bkg_fit.png")
 
-  limit = calculateExpectedLimit(fit_nsig, fit_nbkg)
+  limit = calculateExpectedLimit(fit_nsig, fit_nbkg, fit_nbkg_err)
   print("95%% CL limit on mu: %f"%limit)
 
 def testOptimisation(nbkg=100, nsig=100, l=0.05, pres=(100,180), sr=(120,130)):

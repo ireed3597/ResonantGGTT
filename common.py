@@ -1,12 +1,26 @@
 import os
 
+LOW_MASS_MODE = True
+print('\033[93m')
+if LOW_MASS_MODE: print("Running in LOW MASS MODE")
+else:             print("Running in HIGH MASS MODE")
+print('\033[0m')
+
 dummy_val = -9.0 #value used for missing variables, e.g. sublead_lepton_pt when there is only one lepton
 
-lumi_table = {
-  2016: 35.9,
-  2017: 41.5,
-  2018: 59.8
-}
+if not LOW_MASS_MODE:  
+  lumi_table = {
+    2016: 36.31,
+    2017: 41.48,
+    2018: 59.83
+  }
+else:
+  lumi_table = {
+    2016: 36.31,
+    2017: 41.48,
+    2018: 54.67
+  }
+tot_lumi = "%.3g"%(lumi_table[2016]+lumi_table[2017]+lumi_table[2018])
 
 category_map = {
   1: "tau/mu",
@@ -22,18 +36,30 @@ category_map = {
 sig_procs = {
   "X_HH": ['XToHHggTauTau_M260', 'XToHHggTauTau_M270', 'XToHHggTauTau_M280', 'XToHHggTauTau_M290', 'XToHHggTauTau_M300', 'XToHHggTauTau_M320', 'XToHHggTauTau_M350', 'XToHHggTauTau_M400', 'XToHHggTauTau_M450', 'XToHHggTauTau_M500', 'XToHHggTauTau_M550', 'XToHHggTauTau_M600', 'XToHHggTauTau_M650', 'XToHHggTauTau_M700', 'XToHHggTauTau_M750', 'XToHHggTauTau_M800', 'XToHHggTauTau_M900', 'XToHHggTauTau_M1000'],
   "X_YH_Y_gg": ['NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_600', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_700', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_800', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_600', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_600', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_700', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_90'],
-  "X_YH_Y_tautau" : [],
+  "X_YH_Y_tautau" : ['NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_700', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_500', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_600', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_500', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_600', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_500', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_700', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_500', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_600', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_800', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_90'],
   "X_YH_Y_gg_low_mass": ['NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_90']
 }
 sig_procs["all"] = sig_procs["X_HH"] + sig_procs["X_YH_Y_gg"] + sig_procs["X_YH_Y_tautau"]
 
-bkg_procs = {
-  'Diphoton': ['DiPhoton'],
-  'GJets': ['GJets_HT-100To200', 'GJets_HT-200To400', 'GJets_HT-400To600', 'GJets_HT-40To100', 'GJets_HT-600ToInf'],
-  'TT': ['TTGG', 'TTGamma', 'TTJets'],
-  'SM Higgs': ['VBFH_M125', 'VH_M125', 'ggH_M125', 'ttH_M125'],
-  'VGamma': ['WGamma', 'ZGamma']
-}
+if not LOW_MASS_MODE:
+  bkg_procs = {
+    'Diphoton': ['DiPhoton'],
+    'GJets': ['GJets_HT-100To200', 'GJets_HT-200To400', 'GJets_HT-400To600', 'GJets_HT-40To100', 'GJets_HT-600ToInf'],
+    'TT': ['TTGG', 'TTGamma', 'TTJets'],
+    'SM Higgs': ['VBFH_M125', 'VH_M125', 'ggH_M125', 'ttH_M125'],
+    'VGamma': ['WGamma', 'ZGamma'],
+  }
+else:
+  bkg_procs = {
+    #'Diphoton': ['DiPhoton40to80','DiPhoton'],
+    'Diphoton': ['DiPhoton'],
+    'GJets': ['GJets_HT-100To200', 'GJets_HT-200To400', 'GJets_HT-400To600', 'GJets_HT-40To100', 'GJets_HT-600ToInf'],
+    'TT': ['TTGG', 'TTGamma', 'TTJets'],
+    'SM Higgs': ['VBFH_M125', 'VH_M125', 'ggH_M125', 'ttH_M125'],
+    'VGamma': ['WGamma', 'ZGamma'],
+    #'DY': ['DY'],
+    #'VV': ['WW', 'ZZ', 'WZ']
+  }
 bkg_procs["all"] = [proc for key in bkg_procs.keys() for proc in bkg_procs[key]]
 
 weights_systematics = ['weight_tau_idDeepTauVSe_sf_AnalysisTau_central', 'weight_tau_idDeepTauVSjet_sf_AnalysisTau_down', 'weight_muon_id_sfSTAT_SelectedMuon_down', 'weight_central_initial', 'weight_tau_idDeepTauVSjet_sf_AnalysisTau_up', 'weight_muon_iso_sfSTAT_SelectedMuon_down', 'weight_muon_id_sfSYS_SelectedMuon_central', 'weight_muon_iso_sfSYS_SelectedMuon_up', 'weight_electron_id_sf_SelectedElectron_up', 'weight_puWeight_up', 'weight_electron_id_sf_SelectedElectron_central', 'weight_tau_idDeepTauVSmu_sf_AnalysisTau_up', 'weight_muon_iso_sfSYS_SelectedMuon_down', 'weight_puWeight_down', 'weight_electron_id_sf_SelectedElectron_down', 'weight_central_no_lumi', 'weight_muon_id_sfSYS_SelectedMuon_up', 'weight_muon_id_sfSTAT_SelectedMuon_central', 'weight_tau_idDeepTauVSjet_sf_AnalysisTau_central', 'weight_trigger_sf_central', 'weight_electron_veto_sf_Diphoton_Photon_central', 'weight_muon_iso_sfSTAT_SelectedMuon_central', 'weight_L1_prefiring_sf_up', 'weight_electron_veto_sf_Diphoton_Photon_down', 'weight_muon_id_sfSTAT_SelectedMuon_up', 'weight_electron_veto_sf_Diphoton_Photon_up', 'weight_muon_iso_sfSYS_SelectedMuon_central', 'weight_puWeight_central', 'weight_L1_prefiring_sf_down', 'weight_muon_id_sfSYS_SelectedMuon_down', 'weight_muon_iso_sfSTAT_SelectedMuon_up', 'weight_trigger_sf_down', 'weight_trigger_sf_up', 'weight_tau_idDeepTauVSmu_sf_AnalysisTau_down', 'weight_L1_prefiring_sf_central', 'weight_tau_idDeepTauVSe_sf_AnalysisTau_down', 'weight_tau_idDeepTauVSmu_sf_AnalysisTau_central', 'weight_tau_idDeepTauVSe_sf_AnalysisTau_up']
@@ -64,6 +90,14 @@ def get_MX_MY(sig_proc):
     raise Exception("Unexpected signal process: %s"%sig_proc)
   return MX, MY
 
+def get_sig_proc(example_sig_proc, mx, my):
+  if "XToHHggTauTau" in example_sig_proc:
+    return "XToHHggTauTau_M%d"%mx
+  elif "NMSSM_XYH_Y_gg_H_tautau" in example_sig_proc:
+    return "NMSSM_XYH_Y_gg_H_tautau_MX_%d_MY_%d"%(mx, my)
+  elif "NMSSM_XYH_Y_tautau_H_gg" in example_sig_proc:
+    return "NMSSM_XYH_Y_tautau_H_gg_MX_%d_MY_%d"%(mx, my)
+
 def add_MX_MY(df, proc_dict):
   #get sig_procs in parquet file
   sig_procs_in = [sig_proc for sig_proc in sig_procs["all"] if sig_proc in proc_dict.keys()]
@@ -83,8 +117,8 @@ def parserToList(args):
   l = []
   for name in names:
     value = getattr(args, name)
-    if type(value) == list:
-      if len(value) > 0: l.append("--%s %s"%(name.replace("_", "-"), " ".join(value)))
+    if type(value) in [list, tuple]:
+      if len(value) > 0: l.append("--%s %s"%(name.replace("_", "-"), " ".join([str(v) for v in value])))
     elif value is True:
       l.append("--%s"%name.replace("_", "-"))
     elif type(value) in [str, float, int]:
@@ -101,7 +135,7 @@ def parserToList(args):
     l_split.extend(each.split(" "))
   return l_split
 
-def submitToBatch(argv, extra_memory=False):
+def submitToBatch(argv, extra_memory=False, quick=False):
   COMMAND = argv
   COMMAND.remove("--batch")
   COMMAND = " ".join(COMMAND)
@@ -130,7 +164,8 @@ def submitToBatch(argv, extra_memory=False):
   else:
     slots = extra_memory
 
-  submit_command = "qsub -q hep.q -l h_vmem=24G -l h_rt=3:0:0 -pe hep.pe %d %s"%(slots, script_path)
+  if not quick:  submit_command = "qsub -q hep.q -l h_vmem=24G -l h_rt=3:0:0 -pe hep.pe %d %s"%(slots, script_path)
+  else:          submit_command = "qsub -q hep.q -l h_vmem=24G -l h_rt=600 %s"%script_path
   os.system(submit_command)
 
 from pyarrow.parquet import ParquetFile
@@ -139,3 +174,16 @@ def getColumns(parquet_file):
   columns = [each.name for each in pf.schema]
   columns.remove("__index_level_0__")
   return columns
+
+import json
+import numpy as np
+class NumpyEncoder(json.JSONEncoder):
+    """ Special json encoder for numpy types """
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
