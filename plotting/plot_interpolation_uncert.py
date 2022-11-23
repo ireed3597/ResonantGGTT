@@ -109,15 +109,15 @@ for year in years:
 
       masses_in_interp = []
       for each in models[year][cat][mass].keys():
-        if each != "this mass":
+        if (each != "this mass") and (each != "same_score"):
           masses_in_interp.append([int(each.split("_")[0]), int(each.split("_")[1])])
       masses_in_interp = np.array(masses_in_interp)
 
       skipped_mass = models[year][cat][mass]["this mass"]["skipped_mass"]
       skipped_mass = np.array(skipped_mass.split("_"), dtype=int)
 
-      norms = [models[year][cat][mass][m]["norm"] for m in models[year][cat][mass].keys() if m != "this mass"]
-      norm_errs = [models[year][cat][mass][m]["norm_err"] for m in models[year][cat][mass].keys() if m != "this mass"]
+      norms = [models[year][cat][mass][m]["norm"] for m in models[year][cat][mass].keys() if (m != "this mass") and (m != "same_score")]
+      norm_errs = [models[year][cat][mass][m]["norm_err"] for m in models[year][cat][mass].keys() if (m != "this mass") and (m != "same_score")]
       masses_in_interp = np.array(masses_in_interp, dtype=int)
       norms = np.array(norms, dtype=float)
       norm_errs = np.array(norm_errs, dtype=float)

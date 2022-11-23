@@ -13,8 +13,6 @@ import tracemalloc
 
 from numba import jit
 
-Y_gg = False
-
 @jit(nopython=True)
 def go_fast(hist, bin_edges, l, h):
   min_width = h-l
@@ -36,9 +34,41 @@ def go_fast(hist, bin_edges, l, h):
       break
   return min_width
 
+def debug(mgg, w, my, w_normed, s, l, h):
+  #mgg = mgg.to_numpy()
+  #w = w.to_numpy()
+  #w_normed = w_normed.to_numpy()
+  #s = s.to_numpy()
+
+  print()
+  print(w_normed)
+  print(mgg)
+  print(w_normed[s])
+  print(mgg[s])
+  print(sum(w_normed))
+  print(sum(w_normed[s]))
+  print(sum(w_normed[(mgg>=l)&(mgg<=h)]))
+  print(np.average(mgg[s], weights=w[s]))
+  print(np.std(mgg[s]))
+  sort = np.argsort(mgg)
+  mgg_sort = mgg[sort]
+  w_sort = w_normed[sort]
+  print(w_sort)
+  print(mgg_sort)
+  cs = np.cumsum(w_sort)
+  q = lambda x: mgg_sort[np.argmin(abs(cs-x))]
+  print(q(0.05), q(0.1), q(0.16), q(0.5), q(1-0.16), q(1-0.1), q(1-0.05))
+  print(l, h)
+
 def getEffSigma(mgg, w, my):
   assert len(w) >= 100
   assert sum(w) > 0
+
+  mgg = mgg.to_numpy()
+  w = w.to_numpy()
+
+  mgg = mgg[w>0]
+  w = w[w>0]
 
   if Y_gg:
     l = my - 10*(my/125.0)
@@ -47,13 +77,18 @@ def getEffSigma(mgg, w, my):
     l = 125 - 10
     h = 125 + 10
   s = (mgg >= l) & (mgg <= h)
-  w_normed = w[s] / sum(w)
+  
+  # w_normed = w / sum(w)
+  # assert np.isclose(sum(w_normed), 1)
+  # #debug(mgg, w, my, w_normed, s, l, h)
+  # if sum(w_normed[s]) < 0.6827:
+  #   print("Warning: %.2f (< 68%%) of signal (my=%d) was found in range used for effSigma"%(sum(w_normed[s]), my))
+  #   return h-l
 
-  if sum(w_normed) < 0.6827:
-    print("Warning: %.2f (< 68%%) of signal (my=%d) was found in range used for effSigma"%(sum(w_normed), my))
-    return h-l
+  w_normed = w / sum(w[s]) # normalise according to events falling in window
+  #w_normed = w / sum(w)
 
-  hist, bin_edges = np.histogram(mgg[s], bins=200, range=(l,h), weights=w_normed)
+  hist, bin_edges = np.histogram(mgg[s], bins=300, range=(l,h), weights=w_normed[s])
   
   min_width = go_fast(hist, bin_edges, l, h)
   assert min_width != h-l
@@ -72,7 +107,9 @@ def getMean(mgg, w, my):
     l = 125 - 10
     h = 125 + 10
   s = (mgg >= l) & (mgg <= h)
+
   return np.average(mgg[s], weights=w[s])
+  #return np.median(mgg[s])
 
 # def getMean(mgg, w):
 #   assert len(w) >= 100
@@ -212,8 +249,10 @@ def deriveSystematics(dfs, original_outdir):
     sig_model = json.load(f)
 
   for year in sig_model.keys():
+  #for year in ["2016"]:
     systematics[year] = {}
     for SR in sig_model[year].keys():
+    #for SR in ["1", "2"]:
       print(year, SR)
       systematics[year][SR] = {}
 
@@ -223,6 +262,7 @@ def deriveSystematics(dfs, original_outdir):
         year_SR_dfs[key] = df[(df.year==int(year))&(df.SR==int(SR))]
 
       for mass in sig_model[year][SR].keys():
+        print(mass)
         #check if systematics already calculated
         closest_mass = sig_model[year][SR][mass]["this mass"]["closest_mass"]
         if closest_mass not in systematics[year][SR].keys():

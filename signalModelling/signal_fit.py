@@ -85,20 +85,9 @@ def chi2Fit(x, y, p0, bounds, errors, deviate=False, level=0):
 def histogram(df, fit_range, nbins):
   sumw, edges = np.histogram(df.Diphoton_mass, bins=nbins, range=fit_range, density=False, weights=df.weight)
   sumw2, edges = np.histogram(df.Diphoton_mass, bins=nbins, range=fit_range, density=False, weights=df.weight**2)
-
-  # N_pos, edges = np.histogram(df.Diphoton_mass[df.weight>=0], bins=nbins, range=fit_range, density=False)
-  # N_neg, edges = np.histogram(df.Diphoton_mass[df.weight<0], bins=nbins, range=fit_range, density=False)
   
   bin_centers = (edges[:-1] + edges[1:])/2
-
-  # N_eff = N_pos - N_neg
-  # N_eff[N_eff<0] = 0
-
-  #with np.errstate(all='ignore'): errors = sumw / np.sqrt(N_eff)
-  #errors = np.nan_to_num(errors)
-
   errors = np.sqrt(sumw2)
-  #errors[N_eff>0] = sumw[N_eff>0] / np.sqrt(N_eff[N_eff>0])
 
   non_zero_indicies = np.arange(len(errors))[errors>0]
   for i, lt in enumerate(errors<=0):
@@ -131,27 +120,24 @@ def plotFit(bin_centers, sumw, errors, fit_range, popt, chi2, savepath):
   plt.savefig(savepath)
   plt.clf()
 
-def plotFitComparison(bin_centers, sumw, errors, fit_range, popt_nominal, popt_interp, savepath, normed=False):
+def plotFitComparison(bin_centers, sumw, errors, fit_range, popt_nom, popt_interp, savepath):
   plt.errorbar(bin_centers, sumw, errors, fmt="k.", capsize=2)
   x = np.linspace(fit_range[0], fit_range[1], 200)
 
-  chi2 = np.sum(np.power((sumw-dcb(bin_centers, *popt_nominal))/errors, 2)) / len(bin_centers)
-  #plt.text(max(x), max(sumw+errors), r"$\chi^2 / dof$=%.2f"%chi2, verticalalignment='top', horizontalalignment='right')
-  #plt.plot(x, dcb(x, *popt_nominal), label="Nominal fit")
-  plt.plot(x, dcb(x, *popt_nominal),     label="Nominal\n" r"$\chi^2 / dof$=%.2f"%chi2)
-  
-  popt_interp_copy = popt_interp.copy()
-  if normed: popt_interp_copy[0] *= spi.quad(dcb, fit_range[0], fit_range[1], args=tuple(popt_nominal), epsrel=0.001)[0] / spi.quad(dcb, fit_range[0], fit_range[1], args=tuple(popt_interp_copy), epsrel=0.001)[0]
-  chi2 = np.sum(np.power((sumw-dcb(bin_centers, *popt_interp))/errors, 2)) / len(bin_centers)
-  #plt.text(max(x), max(sumw+errors)*0.9, r"$\chi^2 / dof$=%.2f"%chi2, verticalalignment='top', horizontalalignment='right')
-  #plt.plot(x, dcb(x, *popt_interp_copy), label="Interpolated fit")
-  plt.plot(x, dcb(x, *popt_interp_copy), label="Interpolated\n" r"$\chi^2 / dof$=%.2f"%chi2)
-  
+  popt_nom_normed = popt_nom.copy()
+  popt_nom_normed[0] *= sum(sumw) / spi.quad(dcb, fit_range[0], fit_range[1], args=tuple(popt_nom_normed), epsrel=0.001)[0]
+  popt_nom_normed[0] *= (fit_range[1]-fit_range[0])/len(sumw)
+  chi2_nom = getChi2(popt_nom, bin_centers, sumw, errors, dcb)
+  plt.plot(x, dcb(x, *popt_nom_normed), label="MC fit\n" + r"$\chi^2 / dof$=%.2f"%chi2_nom)
+
+  popt_interp_normed = popt_interp.copy()
+  popt_interp_normed[0] *= sum(sumw) / spi.quad(dcb, fit_range[0], fit_range[1], args=tuple(popt_interp_normed), epsrel=0.001)[0]
+  popt_interp_normed[0] *= (fit_range[1]-fit_range[0])/len(sumw)
+  chi2_interp = getChi2(popt_interp, bin_centers, sumw, errors, dcb)
+  plt.plot(x, dcb(x, *popt_interp_normed), label="Interpolated fit\n" + r"$\chi^2 / dof$=%.2f"%chi2_interp)
+
   plt.xlabel(r"$m_{\gamma\gamma}$")
-
-  #plt.ylim(0, max(sumw+errors)*1.2)
-
-  plt.legend(loc="upper left")
+  plt.legend()
   plt.savefig(savepath)
   plt.clf()
 

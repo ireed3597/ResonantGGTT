@@ -45,9 +45,17 @@ def createDefaultConfig(data, bkg, sig):
     b = bkg[column][bkg[column]!=common.dummy_val]
     s = sig[column][sig[column]!=common.dummy_val]
     
-
     low = min([d.quantile(0.05), b.quantile(0.05), s.quantile(0.05)])
     high = max([d.quantile(0.95), b.quantile(0.95), s.quantile(0.95)])
+
+    #if the absolute minimum and maximums are closeby, then extend to absolute max and/or min
+    mmin = min([d.min(), b.min(), s.min()])
+    if (low-mmin) / (high-low) < 0.2:
+      low = mmin
+    mmax = min([d.max(), b.max(), s.max()])
+    if (mmax-high) / (high-low) < 0.2:
+      high = mmax
+
     config[column] = {"range": [float(low),float(high)]}
     print(column.ljust(30), low, high)
 
@@ -196,7 +204,7 @@ def adjustLimits(x, ys, ax):
     ax.legend(ncol=3, loc="upper right", markerfirst=False)
     ax.set_ylim(top = ty_inv(yhigh + top_distance_to_move))
 
-def plot_feature(data, bkg, sig, proc_dict, sig_procs, column, nbins, feature_range, save_path, no_legend=False, only_legend=False):
+def plot_feature(data, bkg, sig, proc_dict, sig_procs, column, nbins, feature_range, save_path, no_legend=False, only_legend=False, limits=None, delete_zeros=False):
   if type(sig_procs) != list: sig_procs = [sig_procs]
 
   if not only_legend: 
@@ -221,16 +229,24 @@ def plot_feature(data, bkg, sig, proc_dict, sig_procs, column, nbins, feature_ra
   ratio = data_hist / bkg_sumw
   ratio_err = data_error / bkg_sumw
 
+  
+  s = (data_hist != 0) | (not delete_zeros)
+
   axs[0].fill_between(edges, np.append(bkg_sumw-bkg_error, 0), np.append(bkg_sumw+bkg_error, 0), step="post", alpha=0.5, color="grey", zorder=8) #background uncertainty
   axs[0].hist(bkg_stack, edges, weights=bkg_stack_w, label=bkg_stack_labels, stacked=True, color=colour_schemes[len(bkg_stack)], zorder=7) #background
-  axs[0].errorbar(bin_centres, data_hist, data_error, label="Data", fmt='ko', zorder=10) #data
+  axs[0].errorbar(bin_centres[s], data_hist[s], data_error[s], label="Data", fmt='ko', zorder=10) #data
   axs[0].set_ylabel("Events")
 
-  axs[1].errorbar(bin_centres, ratio, ratio_err, label="Data", fmt='ko')
+  axs[1].errorbar(bin_centres[s], ratio[s], ratio_err[s], label="Data", fmt='ko')
   axs[1].fill_between(edges, np.append(1-bkg_error/bkg_sumw, 1), np.append(1+bkg_error/bkg_sumw, 1), step="post", alpha=0.5, color="grey")
 
-  axs[1].set_xlabel(column)
+  if column in common.latex_dict:
+    xlabel = common.latex_dict[column]
+  else:
+    xlabel = column
+  axs[1].set_xlabel(xlabel)
   axs[1].set_ylabel("Data / MC")
+  axs[1].set_ylim([0.5, 1.5])
 
   plt.sca(axs[0])
   mplhep.cms.label(llabel="Work in Progress", data=True, lumi=common.tot_lumi, loc=0)
@@ -262,17 +278,18 @@ def plot_feature(data, bkg, sig, proc_dict, sig_procs, column, nbins, feature_ra
   #   #plt.savefig("%s_log.pdf"%save_path)
 
   for sig_proc in sig_procs:
-    #print(sig_proc)
-    #try: _ = [b.remove() for b in bars]
-    #except: pass
     sig_hist, edges = np.histogram(sig[sig.process_id==proc_dict[sig_proc]][column], bins=nbins, range=feature_range, weights=sig[sig.process_id==proc_dict[sig_proc]]["weight"])
-    #sig_sf = data_hist.max() / sig_hist.max()
-    sig_sf = max([bkg_sumw.max(), data_hist.max()]) / sig_hist.max()
-    #counts, bins, bars = axs[0].hist(edges[:-1], edges, weights=sig_hist*sig_sf, label=getSigLabel(sig_proc), histtype='step', lw=3, zorder=9) #signal
-    axs[0].hist(edges[:-1], edges, weights=sig_hist*sig_sf, label=getSigLabel(sig_proc), histtype='step', lw=2, path_effects=[pe.Stroke(linewidth=5, foreground='w'), pe.Normal()], zorder=9) #signal
+    if limits is None:
+      sig_sf = max([bkg_sumw.max(), data_hist.max()]) / sig_hist.max()
+    else:
+      MX, MY = common.get_MX_MY(sig_proc)
+      scale = 100
+      sig_sf = limits[(limits.MX==MX)&(limits.MY==MY)].iloc[0]["Expected 95% CL Limit [fb]"] * scale
+    
+    axs[0].hist(edges[:-1], edges, weights=sig_hist*sig_sf, label=getSigLabel(sig_proc), histtype='step', lw=4, path_effects=[pe.Stroke(linewidth=6, foreground='w'), pe.Normal()], zorder=9) #signal
 
   if only_legend: 
-    axs[0].legend(ncol=int((2+len(sig_procs)+len(bkg_stack))/3), frameon=True, loc="center")
+    axs[0].legend(ncol=int((2+len(sig_procs)+len(bkg_stack))/3), frameon=True, loc="center", title=r"Signal normalised to %d $\times$ expected limit"%scale)
   
   axs[0].set_yscale("linear")
   if not no_legend:
@@ -294,7 +311,7 @@ def plot_feature(data, bkg, sig, proc_dict, sig_procs, column, nbins, feature_ra
 
   plt.close()
 
-def plot(data, bkg, sig, proc_dict, args):
+def plot(data, bkg, sig, proc_dict, args, limits=None):
   if args.no_legend:
     data["no_legend"] = np.random.randint(0, 2, size=len(data))
     bkg["no_legend"] = np.random.randint(0, 2, size=len(bkg))
@@ -307,19 +324,20 @@ def plot(data, bkg, sig, proc_dict, args):
     nbins = 20
     feature_range = cfg[column]["range"]
     save_path = "%s/%s"%(args.output, column)
-    plot_feature(data, bkg, sig, proc_dict, args.sig_procs, column, nbins, feature_range, save_path, no_legend=args.no_legend)
+    plot_feature(data, bkg, sig, proc_dict, args.sig_procs, column, nbins, feature_range, save_path, no_legend=args.no_legend, limits=limits)
 
   if args.no_legend:
     column = "no_legend"
     nbins = 20
     feature_range = cfg[column]["range"]
     save_path = "%s/%s"%(args.output, column)
-    plot_feature(data, bkg, sig, proc_dict, args.sig_procs, column, nbins, feature_range, save_path, no_legend=args.no_legend, only_legend=True)
+    plot_feature(data, bkg, sig, proc_dict, args.sig_procs, column, nbins, feature_range, save_path, no_legend=args.no_legend, only_legend=True, limits=limits)
 
 if __name__=="__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--input', '-i', type=str)
   parser.add_argument('--summary', '-s', type=str)
+  parser.add_argument('--limits', default=None, type=str)
   parser.add_argument('--sig-procs', '-p', type=str, nargs="+")
   parser.add_argument('--output', '-o', type=str, default="plots")
   parser.add_argument('--config', '-c', type=str)
@@ -333,11 +351,18 @@ if __name__=="__main__":
   with open(args.summary, "r") as f:
     proc_dict = json.load(f)["sample_id_map"]
 
+  if args.limits != None:
+    with open(args.limits, "r") as f:
+      limits = pd.read_csv(args.limits, index_col=0)
+      print(limits)
+  else:
+    limits = None
+
   #sometimes bkg processes won't appear in parquet file because none passed selection
   for bkg_proc in common.bkg_procs["all"]:
     if bkg_proc not in proc_dict.keys():
       proc_dict[bkg_proc] = -9999
-  
+
   print(">> Loading dataframes")  
   
   columns = common.getColumns(args.input)
@@ -372,6 +397,6 @@ if __name__=="__main__":
 
   #import cProfile
   #cProfile.run('plot(data, bkg, sig, proc_dict, args)', 'restats')
-  plot(data, bkg, sig, proc_dict, args)
+  plot(data, bkg, sig, proc_dict, args, limits)
   
   

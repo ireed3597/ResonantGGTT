@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib
 
 import signalModelling.systematics as syst
+syst.Y_gg = False # so systematics scripts what ranges to use for mgg
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import mplhep
@@ -60,6 +61,14 @@ def getClosest(mass, all_masses):
   sorted_masses = all_masses[np.argsort(r)]
   return ["%d_%d"%tuple(m) for m in sorted_masses]
 
+def findSuccessfulSystematics(systematics):
+  for k1, v1 in systematics.items():            # year
+    for k2, v2 in systematics[k1].items():      # SR
+      for k3, v3 in systematics[k1][k2].items():    # mass
+        for k4, v4 in systematics[k1][k2][k3].items():  # proc
+          if type(v4) is dict:
+            return v4
+
 def deriveModels(dfs, proc_dict, optim_results, original_outdir, make_plots=False, systematics=False):
   nSR = len(optim_results[0]["category_boundaries"]) - 1
   models = {str(year):{str(SR):{} for SR in range(nSR)} for year in np.unique(dfs["nominal"].year)}
@@ -77,6 +86,7 @@ def deriveModels(dfs, proc_dict, optim_results, original_outdir, make_plots=Fals
     print(year)
     for entry in optim_results:
       MX, MY = common.get_MX_MY(entry["sig_proc"])
+      if MY != 90: continue
       mass = "%d_%d"%(MX, MY)
       print(mass)
       for key,df in dfs.items():
@@ -132,7 +142,7 @@ def deriveModels(dfs, proc_dict, optim_results, original_outdir, make_plots=Fals
             norm = df_proc.weight.sum() / (1000 * common.lumi_table[year]) #finalFits expects picobarn
           
           else: #if don't need a model
-            popt = np.array([1, 124.8, 1.35, 1.3, 4.5, 2.1, 2.8]) #from a ttH model with good statsparameters
+            popt = np.array([1, 124.8-125, 1.35, 1.3, 4.5, 2.1, 2.8]) #from a ttH model with good stats
             perr = np.zeros_like(popt)
             norm = 0
 
@@ -147,59 +157,67 @@ def deriveModels(dfs, proc_dict, optim_results, original_outdir, make_plots=Fals
         #fill in missing models
         for proc in common.bkg_procs["SM Higgs"]:
           if (models[str(year)][str(SR)][mass][proc]["parameters"] == []) & (models[str(year)][str(SR)][mass][proc]["norm"] != 0): #if couldn't derive model
-            #assert models[str(year)][str(SR)][mass]["ttH_M125"]["parameters"] != [] #check ttH model exists
-            #replace with ttH model
+            
+            # check ttH model exists, if not, give resonable shape parameters to ttH
+            if models[str(year)][str(SR)][mass]["ttH_M125"]["parameters"] == []:
+              models[str(year)][str(SR)][mass]["ttH_M125"]["parameters"] = np.array([1, 124.8-125, 1.35, 1.3, 4.5, 2.1, 2.8])
+              models[str(year)][str(SR)][mass][proc]["parameters_err"] = np.zeros_like(popt)
+
             models[str(year)][str(SR)][mass][proc]["parameters"] = models[str(year)][str(SR)][mass]["ttH_M125"]["parameters"]
             models[str(year)][str(SR)][mass][proc]["parameters_err"] = models[str(year)][str(SR)][mass]["ttH_M125"]["parameters_err"]
 
-    all_masses = []
-    for SR in dfs_tagged["nominal"].SR.unique():
-    #for SR in [0, 5]:
-      for mass in systematics[str(year)][str(SR)]:
-        all_masses.append(mass.split("_"))
+    if systematics:
+      for SR in dfs_tagged["nominal"].SR.unique():
+        all_masses = []
+        for mass in systematics[str(year)][str(SR)]:
+          all_masses.append(mass.split("_"))
 
-      #replace systematics with closest
-      for mass in systematics[str(year)][str(SR)]:
-        for proc in common.bkg_procs["SM Higgs"]:
-          if systematics[str(year)][str(SR)][mass][proc] == "closest":
-            for closest_mass in getClosest(mass, all_masses):
-              if type(systematics[str(year)][str(SR)][closest_mass][proc]) is dict:
-                print(mass, closest_mass)
-                systematics[str(year)][str(SR)][mass][proc] = systematics[str(year)][str(SR)][closest_mass][proc]
-                break
-            assert type(systematics[str(year)][str(SR)][mass][proc]) is dict
+        #put in no systematics
+        no_sys_dict = copy.deepcopy(findSuccessfulSystematics(systematics))
+        for key in no_sys_dict.keys():
+          if "const" in key:
+            no_sys_dict[key] = 0.0
+          else:
+            no_sys_dict[key] = 1.0
+        for mass in systematics[str(year)][str(SR)]:
+          for proc in common.bkg_procs["SM Higgs"]:
+            if systematics[str(year)][str(SR)][mass][proc] == "no systematics":
+              systematics[str(year)][str(SR)][mass][proc] = no_sys_dict
 
-      #put in no systematics
-      no_sys_dict = copy.deepcopy(systematics[str(year)][str(SR)][mass][proc])
-      for key in no_sys_dict.keys():
-        if "const" in key:
-          no_sys_dict[key] = 0.0
-        else:
-          no_sys_dict[key] = 1.0
-      for mass in systematics[str(year)][str(SR)]:
-        for proc in common.bkg_procs["SM Higgs"]:
-          if systematics[str(year)][str(SR)][mass][proc] == "no systematics":
-            systematics[str(year)][str(SR)][mass][proc] = no_sys_dict
+        #make ttH replacement
+        for mass in systematics[str(year)][str(SR)]:
+          for proc in common.bkg_procs["SM Higgs"]:
+            if systematics[str(year)][str(SR)][mass][proc] == "from ttH":
+              systematics[str(year)][str(SR)][mass][proc] = systematics[str(year)][str(SR)][mass]["ttH_M125"]
 
-      #make ttH replacement
-      for mass in systematics[str(year)][str(SR)]:
-        for proc in common.bkg_procs["SM Higgs"]:
-          if systematics[str(year)][str(SR)][mass][proc] == "from ttH":
-            systematics[str(year)][str(SR)][mass][proc] = systematics[str(year)][str(SR)][mass]["ttH_M125"]
+        #replace systematics with closest
+        for mass in systematics[str(year)][str(SR)]:
+          for proc in common.bkg_procs["SM Higgs"]:
+            if systematics[str(year)][str(SR)][mass][proc] == "closest":
+              for closest_mass in getClosest(mass, all_masses):
+                if type(systematics[str(year)][str(SR)][closest_mass][proc]) is dict:
+                  print(mass, closest_mass)
+                  closest_systematics = systematics[str(year)][str(SR)][closest_mass][proc]
+                  systematics[str(year)][str(SR)][mass][proc] = closest_systematics
+                  break
+              assert type(systematics[str(year)][str(SR)][mass][proc]) is dict
+
+        
 
   #at this stage we have
 
   with open(os.path.join(original_outdir, "model.json"), "w") as f:
-    json.dump(models, f, indent=4, sort_keys=True)
+    json.dump(models, f, indent=4, sort_keys=True, cls=common.NumpyEncoder)
   with open(os.path.join(original_outdir, "systematics.json"), "w") as f:
-    json.dump(systematics, f, indent=4, sort_keys=True)
+    json.dump(systematics, f, indent=4, sort_keys=True, cls=common.NumpyEncoder)
 
 
-def loadDataFrame(path, proc_dict, columns=None):
+def loadDataFrame(path, proc_dict, columns=None, sample_fraction=1.0):
   if columns is None:
     columns = common.getColumns(path)
     columns = list(filter(lambda x: x[:5] != "score", columns))
   df = pd.read_parquet(path, columns=columns)
+  if sample_fraction != 1.0 :df = df.sample(frac=sample_fraction)
   df = df[df.process_id.isin([proc_dict[proc] for proc in common.bkg_procs["SM Higgs"]])]
 
   return df
@@ -208,7 +226,7 @@ def loadDataFrames(args, proc_dict):
   dfs = {}
   
   #load nominal dataframe
-  df = loadDataFrame(os.path.join(args.parquet_input, "merged_nominal.parquet"), proc_dict)
+  df = loadDataFrame(os.path.join(args.parquet_input, "merged_nominal.parquet"), proc_dict, sample_fraction=args.dataset_fraction)
   #systematic_columns = list(filter(lambda x: ("intermediate_transformed_score" in x), df.columns)) + ["Diphoton_mass", "process_id", "weight", "y", "year"]
   dfs["nominal"] = df
 
@@ -218,7 +236,7 @@ def loadDataFrames(args, proc_dict):
       #if "fnuf" in path or "merged_JER" in path:
         print(path)
         #df = loadDataFrame(os.path.join(args.parquet_input, path), proc_dict, columns=systematic_columns)
-        df = loadDataFrame(os.path.join(args.parquet_input, path), proc_dict)
+        df = loadDataFrame(os.path.join(args.parquet_input, path), proc_dict, sample_fraction=args.dataset_fraction)
         name = "_".join(path.split(".parquet")[0].split("_")[1:])
         dfs[name] = df
 
@@ -249,6 +267,7 @@ if __name__=="__main__":
   parser.add_argument('--batch-slots', type=int, default=2)
   parser.add_argument('--make-plots', action="store_true")
   parser.add_argument('--systematics', action="store_true")
+  parser.add_argument('--dataset-fraction', type=float, default=1.0)
   args = parser.parse_args()
   
   os.makedirs(args.outdir, exist_ok=True)

@@ -43,6 +43,7 @@ def getLimits(results_path):
 
   limits = np.zeros((5, len(masses)))
   limits_no_sys = np.zeros((5, len(masses)))
+  limits_no_res_bkg = np.zeros((5, len(masses)))
 
   for line in results:
     m = line.split(".")[0].split("_")[-1]
@@ -66,8 +67,13 @@ def getLimits(results_path):
 
     if "no_sys" in line:
       limits_no_sys[idx2][idx1] = limit
+    elif "no_res_bkg" in line:
+      limits_no_res_bkg[idx2][idx1] = limit
     else:
       limits[idx2][idx1] = limit
+
+  #print(limits[2])
+  #print(limits_no_sys[2])
 
   masses = np.array(masses)
   #sort out scan over mh (mgg)
@@ -87,20 +93,22 @@ def getLimits(results_path):
         masses = np.delete(masses, to_delete, axis=0)
         limits = np.delete(limits, to_delete, axis=1)
         limits_no_sys = np.delete(limits_no_sys, to_delete, axis=1)
+        limits_no_res_bkg = np.delete(limits_no_res_bkg, to_delete, axis=1)
 
     masses[:,1] = masses[:,2] #set my to be mh
   
-  masses = masses[:,:2]
+  #masses = masses[:,:2]
+  #print(masses)
 
-  return masses, limits, limits_no_sys
+  return masses, limits, limits_no_sys, limits_no_res_bkg
     
-def plotLimits(mX, limits, ylabel, nominal_masses, savename=None):
+def plotLimits(mX, limits, ylabel, nominal_masses, savename=None, xlabel=r"$m_X$"):
   plt.scatter(mX, limits[2], zorder=3, facecolors="none", edgecolors="blue")
   plt.scatter(mX[np.isin(mX, nominal_masses)], limits[2][np.isin(mX, nominal_masses)], zorder=4, facecolors="none", edgecolors="red", label="Nominal masses")
   plt.plot(mX, limits[2], 'b--', zorder=3, label="Expected 95% CL limit")
   plt.fill_between(mX, limits[1], limits[3], zorder=2, facecolor="green", label=r"$\pm$ $1\sigma$")
   plt.fill_between(mX, limits[0], limits[4], zorder=1, facecolor="yellow", label=r"$\pm$ $2\sigma$")
-  plt.xlabel(r"$m_X$")
+  plt.xlabel(xlabel)
   plt.ylabel(ylabel)
   
   plt.legend()
@@ -214,15 +222,25 @@ def plotLimits2D(masses, limits, ylabel, savename):
   for i, m in enumerate(masses):
     print(m, max_allowed_values[i])
   
-  plt.hist2d(masses[:,0], masses[:,1], [mx_edges, my_edges], weights=limits[2], norm=matplotlib.colors.LogNorm())
+  #plt.hist2d(masses[:,0], masses[:,1], [mx_edges, my_edges], weights=limits[2], norm=matplotlib.colors.LogNorm())
+  mx_edge_centers = (mx_edges[:-1]+mx_edges[1:])/2
+  my_edge_centers = (my_edges[:-1]+my_edges[1:])/2
+  interp_masses = []
+  interp_limits = []
+  for mxi in mx_edge_centers:
+    for myi in my_edge_centers:
+      interp_masses.append([mxi, myi])
+  interp_masses = np.array(interp_masses)
+  interp_limits = spi.griddata(masses[:,:2], limits[2], interp_masses, method="linear", fill_value=0)
+  plt.hist2d(interp_masses[:,0], interp_masses[:,1], [mx_edges, my_edges], weights=interp_limits, norm=matplotlib.colors.LogNorm())
   
   cbar = plt.colorbar()
   cbar.set_label(ylabel)
   plt.xlabel(r"$m_X$")
   plt.ylabel(r"$m_Y$")
 
-  #plt.text(0.05, 0.9, r"$Y\rightarrow\tau\tau$", transform=plt.gca().transAxes, fontsize=32)
-  plt.text(0.05, 0.9, r"$Y\rightarrow\gamma\gamma$", transform=plt.gca().transAxes, fontsize=32)
+  plt.text(0.05, 0.9, r"$Y\rightarrow\tau\tau$", transform=plt.gca().transAxes, fontsize=32)
+  #plt.text(0.05, 0.9, r"$Y\rightarrow\gamma\gamma$", transform=plt.gca().transAxes, fontsize=32)
 
   mplhep.cms.label(llabel="Work in Progress", data=True, lumi=common.tot_lumi, loc=0)
 
@@ -240,11 +258,11 @@ def plotLimits2D(masses, limits, ylabel, savename):
 
   plt.clf()
 
-def plotSystematicComparison(mx, limits, limits_no_sys, nominal_masses, savename):
+def plotSystematicComparison(mx, limits, limits_no_sys, nominal_masses, savename, xlabel=r"$m_X$"):
   ratio = limits[2]/limits_no_sys[2]
   plt.plot(mx, ratio)
   plt.scatter(mx[np.isin(mx, nominal_masses)], ratio[np.isin(mx, nominal_masses)], zorder=4, facecolors="none", edgecolors="red", label="Nominal masses")
-  plt.xlabel(r"$m_X$")
+  plt.xlabel(xlabel)
   plt.ylabel("Exp. limit w / wo systematics")
 
   plt.legend()
@@ -253,7 +271,7 @@ def plotSystematicComparison(mx, limits, limits_no_sys, nominal_masses, savename
   plt.savefig(savename+".pdf")
   plt.clf()
 
-def plotSystematicComparison2(mx, limits, limits_no_sys, nominal_masses, ylabel, savename):
+def plotSystematicComparison2(mx, limits, limits_no_sys, ylabel, nominal_masses, savename, xlabel=r"$m_X$" ):
   f, axs = plt.subplots(2, sharex=True, gridspec_kw={'height_ratios': [3, 1]})
 
   ratio = limits[2]/limits_no_sys[2]
@@ -269,7 +287,30 @@ def plotSystematicComparison2(mx, limits, limits_no_sys, nominal_masses, ylabel,
   axs[1].scatter(mx[np.isin(mx, nominal_masses)], ratio[np.isin(mx, nominal_masses)], zorder=4, facecolors="none", edgecolors="red", label="Nominal masses")
   axs[1].legend()
   axs[1].set_ylabel("Ratio")
-  axs[1].set_xlabel(r"$m_X$")
+  axs[1].set_xlabel(xlabel)
+
+  plt.savefig(savename+".png")
+  plt.savefig(savename+".pdf")
+  plt.clf()
+  plt.close(f)
+
+def plotResBkgComparison2(mx, limits, limits_no_sys, ylabel, nominal_masses, savename, xlabel=r"$m_X$"):
+  f, axs = plt.subplots(2, sharex=True, gridspec_kw={'height_ratios': [3, 1]})
+
+  ratio = limits[2]/limits_no_sys[2]
+  
+  axs[0].plot(mx, limits[2], zorder=3, label="Expected 95% CL limit")
+  axs[0].plot(mx, limits_no_sys[2], zorder=3, label="Expected 95% CL limit (no res bkg)")
+
+  axs[0].set_ylabel(ylabel)
+  axs[0].legend()
+  axs[0].set_yscale("log")
+  
+  axs[1].plot(mx, ratio)
+  axs[1].scatter(mx[np.isin(mx, nominal_masses)], ratio[np.isin(mx, nominal_masses)], zorder=4, facecolors="none", edgecolors="red", label="Nominal masses")
+  axs[1].legend()
+  axs[1].set_ylabel("Ratio")
+  axs[1].set_xlabel(xlabel)
 
   plt.savefig(savename+".png")
   plt.savefig(savename+".pdf")
@@ -288,22 +329,43 @@ def tabulateLimits(masses, limits, path):
     f.write(df.to_latex(float_format="%.4f"))
   df.to_csv(os.path.join(path, "param_test_results.csv"), float_format="%.4f")
 
-masses, limits, limits_no_sys = getLimits(sys.argv[1])
+def tabulateLimitsAll(masses, limits, limits_no_sys, limits_no_res_bkg, path):
+  df = pd.DataFrame({"MX": masses[:,0], "MY": masses[:,1], "Expected 95% CL Limit [fb]": limits[2], "No Systematics": limits_no_sys[2], "No Single SM Higgs": limits_no_res_bkg[2]})
+  df.sort_values(["MX", "MY"], inplace=True)
+
+  table = tabulate.tabulate(df, headers='keys', floatfmt=".4f")
+  
+  with open(os.path.join(path, "limits.txt"), "w") as f:
+    f.write(table)
+  with open(os.path.join(path, "limits.tex"), "w") as f:
+    f.write(df.to_latex(float_format="%.4f", index=False))
+  df.to_csv(os.path.join(path, "limits.csv"), float_format="%.4f")
+
+masses, limits, limits_no_sys, limits_no_res_bkg = getLimits(sys.argv[1])
 os.makedirs(os.path.join(sys.argv[2], "Limits_xs_br"), exist_ok=True)
 os.makedirs(os.path.join(sys.argv[2], "Limits_xs"), exist_ok=True)
 os.makedirs(os.path.join(sys.argv[2], "Limits_xs_br_no_sys"), exist_ok=True)
 os.makedirs(os.path.join(sys.argv[2], "Limits_xs_no_sys"), exist_ok=True)
+os.makedirs(os.path.join(sys.argv[2], "Limits_xs_br_no_res_bkg"), exist_ok=True)
+os.makedirs(os.path.join(sys.argv[2], "Limits_xs_no_res_bkg"), exist_ok=True)
 os.makedirs(os.path.join(sys.argv[2], "Limits_systematics_comparison"), exist_ok=True)
+os.makedirs(os.path.join(sys.argv[2], "Limits_res_bkg_comparison"), exist_ok=True)
 
 tabulateLimits(masses, limits, os.path.join(sys.argv[2], "Limits_xs_br"))
+tabulateLimitsAll(masses, limits, limits_no_sys, limits_no_res_bkg, os.path.join(sys.argv[2], "Limits_xs_br"))
 tabulateLimits(masses, limits / BR_HH_GGTT, os.path.join(sys.argv[2], "Limits_xs"))
 
 tabulateLimits(masses, limits_no_sys, os.path.join(sys.argv[2], "Limits_xs_br_no_sys"))
 tabulateLimits(masses, limits_no_sys / BR_HH_GGTT, os.path.join(sys.argv[2], "Limits_xs_no_sys"))
 
+tabulateLimits(masses, limits_no_res_bkg, os.path.join(sys.argv[2], "Limits_xs_br_no_res_bkg"))
+tabulateLimits(masses, limits_no_res_bkg / BR_HH_GGTT, os.path.join(sys.argv[2], "Limits_xs_no_res_bkg"))
+
 if len(np.unique(masses[:,1])) == 1: #if 1D (graviton or radion)
   mx = masses[:,0]
   limits = limits[:,np.argsort(mx)]
+  limits_no_sys = limits_no_sys[:,np.argsort(mx)]
+  limits_no_res_bkg = limits_no_res_bkg[:,np.argsort(mx)]
   mx = mx[np.argsort(mx)]
 
   nominal_masses = [260,270,280,290,300,320,350,400,450,500,550,600,650,700,750,800,900,1000]
@@ -311,18 +373,22 @@ if len(np.unique(masses[:,1])) == 1: #if 1D (graviton or radion)
   ylabel = r"$\sigma(pp \rightarrow X) B(X \rightarrow HH \rightarrow \gamma\gamma\tau\tau)$ [fb]"
   plotLimits(mx, limits, ylabel, nominal_masses, os.path.join(sys.argv[2], "Limits_xs_br", "limits"))
   plotLimits(mx, limits_no_sys, ylabel, nominal_masses, os.path.join(sys.argv[2], "Limits_xs_br_no_sys", "limits_no_sys"))
+  plotLimits(mx, limits_no_res_bkg, ylabel, nominal_masses, os.path.join(sys.argv[2], "Limits_xs_br_no_res_bkg", "limits_no_res_bkg"))
 
   ylabel = r"$\sigma(pp \rightarrow X) B(X \rightarrow HH)$ [fb]"
   plotLimits(mx, limits / BR_HH_GGTT, ylabel, nominal_masses, os.path.join(sys.argv[2], "Limits_xs", "limits"))
   plotLimits(mx, limits_no_sys / BR_HH_GGTT, ylabel, nominal_masses, os.path.join(sys.argv[2], "Limits_xs_no_sys", "limits_no_sys"))
+  plotLimits(mx, limits_no_res_bkg / BR_HH_GGTT, ylabel, nominal_masses, os.path.join(sys.argv[2], "Limits_xs_no_res_bkg", "limits_no_res_bkg"))
 
   plotSystematicComparison(mx, limits, limits_no_sys, nominal_masses, os.path.join(sys.argv[2], "Limits_systematics_comparison", "125"))
   ylabel = r"$\sigma(pp \rightarrow X) B(X \rightarrow HH \rightarrow \gamma\gamma\tau\tau)$ [fb]"
   plotSystematicComparison2(mx, limits, limits_no_sys, ylabel, nominal_masses, os.path.join(sys.argv[2], "Limits_systematics_comparison", "125_2"))
+  plotResBkgComparison2(mx, limits, limits_no_res_bkg, ylabel, nominal_masses, os.path.join(sys.argv[2], "Limits_res_bkg_comparison", "125_2"))
+
 else:
   nominal_mx = [300,400,500,600,700,800,900,1000]
-  nominal_my = [70,80,90,100,125]
-  #nominal_my = [70,80,90,100,125,150,200,250,300,400,500,600,700,800]
+  #nominal_my = [70,80,90,100,125]
+  nominal_my = [70,80,90,100,125,150,200,250,300,400,500,600,700,800]
   #nominal_my = [125,150,200,250,300,400,500,600,700,800]
 
   #only grab the nominal points
@@ -332,20 +398,25 @@ else:
   # masses = masses[s]
 
   ylabel = r"$\sigma(pp \rightarrow X) B(X \rightarrow YH \rightarrow \gamma\gamma\tau\tau)$ [fb]"
-  plotLimitsStackMX(masses, limits,        ylabel, nominal_mx, nominal_my, os.path.join(sys.argv[2], "Limits_xs_br", "limits_stack_mx"))
-  plotLimitsStackMX(masses, limits_no_sys, ylabel, nominal_mx, nominal_my, os.path.join(sys.argv[2], "Limits_xs_br_no_sys", "limits_stack_mx_no_sys"))
-  plotLimitsStackMY(masses, limits,        ylabel, nominal_mx, nominal_my, os.path.join(sys.argv[2], "Limits_xs_br", "limits_stack_my"))
-  plotLimitsStackMY(masses, limits_no_sys, ylabel, nominal_mx, nominal_my, os.path.join(sys.argv[2], "Limits_xs_br_no_sys", "limits_stack_my_no_sys"))
+  plotLimitsStackMX(masses, limits,             ylabel, nominal_mx, nominal_my, os.path.join(sys.argv[2], "Limits_xs_br", "limits_stack_mx"))
+  plotLimitsStackMX(masses, limits_no_sys,      ylabel, nominal_mx, nominal_my, os.path.join(sys.argv[2], "Limits_xs_br_no_sys", "limits_stack_mx_no_sys"))
+  plotLimitsStackMX(masses, limits_no_res_bkg,  ylabel, nominal_mx, nominal_my, os.path.join(sys.argv[2], "Limits_xs_br_no_res_bkg", "limits_stack_mx_no_res_bkg"))
+  plotLimitsStackMY(masses, limits,             ylabel, nominal_mx, nominal_my, os.path.join(sys.argv[2], "Limits_xs_br", "limits_stack_my"))
+  plotLimitsStackMY(masses, limits_no_sys,      ylabel, nominal_mx, nominal_my, os.path.join(sys.argv[2], "Limits_xs_br_no_sys", "limits_stack_my_no_sys"))
+  plotLimitsStackMY(masses, limits_no_res_bkg,  ylabel, nominal_mx, nominal_my, os.path.join(sys.argv[2], "Limits_xs_br_no_res_bkg", "limits_stack_my_no_res_bkg"))
   plotLimits2D(masses, limits,        ylabel, os.path.join(sys.argv[2], "Limits_xs_br", "limits_2d"))
   plotLimits2D(masses, limits_no_sys, ylabel, os.path.join(sys.argv[2], "Limits_xs_br_no_sys", "limits_2d_no_sys"))
+  plotLimits2D(masses, limits_no_res_bkg, ylabel, os.path.join(sys.argv[2], "Limits_xs_br_no_res_bkg", "limits_2d_no_res_bkg"))
 
   for mx in np.unique(masses[:,0]):
     my = masses[masses[:,0]==mx,1]
     limits_slice = limits[:,masses[:,0]==mx]
     limits_no_sys_slice = limits_no_sys[:,masses[:,0]==mx]
+    limits_no_res_bkg_slice = limits_no_res_bkg[:,masses[:,0]==mx]
 
     limits_slice = limits_slice[:,np.argsort(my)]
     limits_no_sys_slice = limits_no_sys_slice[:,np.argsort(my)]
+    limits_no_res_bkg_slice = limits_no_res_bkg_slice[:,np.argsort(my)]
     my = my[np.argsort(my)]
 
     if mx in nominal_mx:
@@ -357,18 +428,22 @@ else:
     print(my, limits_slice)
 
     ylabel = r"$\sigma(pp \rightarrow X(%d)) B(X \rightarrow YH \rightarrow \gamma\gamma\tau\tau)$ [fb]"%mx
-    plotLimits(my, limits_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_xs_br", "limits_mx%d"%mx))
-    plotLimits(my, limits_no_sys_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_xs_br_no_sys", "limits_mx%d_no_sys"%mx))
-    plotSystematicComparison(my, limits_slice, limits_no_sys_slice, nm, os.path.join(sys.argv[2], "Limits_systematics_comparison", "mx%d"%mx))
-    plotSystematicComparison2(my, limits_slice, limits_no_sys_slice, nm, ylabel, os.path.join(sys.argv[2], "Limits_systematics_comparison", "mx%d_2"%mx))
+    plotLimits(my, limits_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_xs_br", "limits_mx%d"%mx), xlabel=r"$m_Y$")
+    plotLimits(my, limits_no_sys_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_xs_br_no_sys", "limits_mx%d_no_sys"%mx), xlabel=r"$m_Y$")
+    plotLimits(my, limits_no_res_bkg_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_xs_br_no_res_bkg", "limits_mx%d_no_res_bkg"%mx), xlabel=r"$m_Y$")
+    plotSystematicComparison(my, limits_slice, limits_no_sys_slice, nm, os.path.join(sys.argv[2], "Limits_systematics_comparison", "mx%d"%mx), xlabel=r"$m_Y$")
+    plotSystematicComparison2(my, limits_slice, limits_no_sys_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_systematics_comparison", "mx%d_2"%mx), xlabel=r"$m_Y$")
+    plotResBkgComparison2(my, limits_slice, limits_no_res_bkg_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_res_bkg_comparison", "mx%d_2"%mx), xlabel=r"$m_Y$")
 
   for my in np.unique(masses[:,1]):
     mx = masses[masses[:,1]==my,0]
     limits_slice = limits[:,masses[:,1]==my]
     limits_no_sys_slice = limits_no_sys[:,masses[:,1]==my]
+    limits_no_res_bkg_slice = limits_no_res_bkg[:,masses[:,1]==my]
 
     limits_slice = limits_slice[:,np.argsort(mx)]
     limits_no_sys_slice = limits_no_sys_slice[:,np.argsort(mx)]
+    limits_no_res_bkg_slice = limits_no_res_bkg_slice[:,np.argsort(mx)]
     mx = mx[np.argsort(mx)]
 
     if my in nominal_my:
@@ -379,8 +454,10 @@ else:
     ylabel = r"$\sigma(pp \rightarrow X) B(X \rightarrow Y(%d)H \rightarrow \gamma\gamma\tau\tau)$ [fb]"%my
     plotLimits(mx, limits_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_xs_br", "limits_my%d"%my))
     plotLimits(mx, limits_no_sys_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_xs_br_no_sys", "limits_my%d_no_sys"%my))
+    plotLimits(mx, limits_no_res_bkg_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_xs_br_no_res_bkg", "limits_my%d_no_res_bkg"%my))
     plotSystematicComparison(mx, limits_slice, limits_no_sys_slice, nm, os.path.join(sys.argv[2], "Limits_systematics_comparison", "my%d"%my))
-    plotSystematicComparison2(mx, limits_slice, limits_no_sys_slice, nm, ylabel, os.path.join(sys.argv[2], "Limits_systematics_comparison", "my%d_2"%my))
+    plotSystematicComparison2(mx, limits_slice, limits_no_sys_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_systematics_comparison", "my%d_2"%my))
+    plotResBkgComparison2(mx, limits_slice, limits_no_res_bkg_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_res_bkg_comparison", "my%d_2"%my))
 
   
 

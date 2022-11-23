@@ -16,15 +16,13 @@ from plotting.plot_input_features import plot_feature
 from training.auc import getAUC
 
 def plotOutputScore(data, sig, bkg, proc_dict, sig_proc, savein):
-  #bkg_rw = bkg.copy()
-  #bkg_rw.loc[:, "weight"] *= data.loc[:, "weight"].sum() / bkg_rw.loc[:, "weight"].sum()
+  bkg_rw = bkg.copy()
+  bkg_rw.loc[:, "weight"] *= data.loc[:, "weight"].sum() / bkg_rw.loc[:, "weight"].sum()
 
   for column in data.columns:
     if ("score" in column) & (sig_proc in column):
-      plot_feature(data[data[column]<0.88], bkg, sig, proc_dict, sig_proc, column, 25, (0,1), os.path.join(savein, column))
-      plot_feature(data[data[column]<0.88], bkg, sig, proc_dict, sig_proc, column, 25, (0.99,1), os.path.join(savein, column+"_zoom"))
-      #plot_feature(data, bkg, sig, proc_dict, sig_proc, column, 50, (0.999,1), os.path.join(savein, column+"_zoom2"))
-      #plot_feature(data, bkg_rw, sig, proc_dict, sig_proc, column, 50, (0,1), os.path.join(savein, column+"_bkg_normed"))
+      plot_feature(data[data[column]<0.88], bkg_rw, sig, proc_dict, sig_proc, column, 25, (0,1), os.path.join(savein, column), delete_zeros=True)
+      plot_feature(data[data[column]<0.88], bkg_rw, sig, proc_dict, sig_proc, column, 25, (0.99,1), os.path.join(savein, column+"_zoom"), delete_zeros=True)
 
 def plotROC(train_fpr, train_tpr, test_fpr, test_tpr, savein):
   #train_auc = np.trapz(train_tpr, train_fpr)
@@ -67,11 +65,23 @@ def plotROC(train_fpr, train_tpr, test_fpr, test_tpr, savein):
   plt.legend()
   plt.savefig(os.path.join(savein, "ROC.png"))
 
-  # plt.xlim(left=0.1)
-  # plt.ylim(bottom=min(test_tpr[test_fpr>0.1]), top=1+(1-min(test_tpr[test_fpr>0.1]))*0.1)
-  # plt.savefig(os.path.join(savein, "ROC_zoom.png"))
-  # plt.xscale("log")
-  # plt.savefig(os.path.join(savein, "ROC_log.png"))
+  #plt.xlim(left=0.1)
+  #plt.ylim(bottom=min(test_tpr[test_fpr>0.1]), top=1+(1-min(test_tpr[test_fpr>0.1]))*0.1)
+  #plt.savefig(os.path.join(savein, "ROC_zoom.png"))
+  #plt.xscale("log")
+  #plt.savefig(os.path.join(savein, "ROC_log.png"))
+  plt.clf()
+
+  plt.plot(train_tpr, train_fpr, label="Train AUC = %.4f"%train_auc)
+  plt.plot(test_tpr, test_fpr, label="Test AUC = %.4f"%test_auc)
+  plt.ylabel("Background efficiency")
+  plt.xlabel("Signal efficiency")
+  plt.legend()
+  plt.yscale("log")
+  plt.ylim(bottom=1e-3, top=2)
+  left_sig_eff = train_tpr[np.argmin(abs(train_fpr-1e-3))]
+  plt.xlim(left=left_sig_eff, right=1+0.08*(1-left_sig_eff))
+  plt.savefig(os.path.join(savein, "ROC_new.png"))
   plt.clf()
 
   return train_auc, test_auc

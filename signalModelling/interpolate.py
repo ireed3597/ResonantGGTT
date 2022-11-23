@@ -126,7 +126,7 @@ def doInterpolation(MX, MY, to_fit_masses, norms_nominal, skip_closest=False):
 
   return norm_cubic, norm_linear, skipped_mass
 
-def deriveModels(original_df, proc_dict, optim_results, original_outdir, make_plots=False, do_same_score_interp=False, fit_range_my=False):
+def deriveModels(original_df, proc_dict, optim_results, original_outdir, make_plots=False, do_same_score_interp=False, fit_range_my=False, masses_to_do=None):
   #derive model for every mass point which you can find from optim_results
 
   all_masses = [common.get_MX_MY(entry["sig_proc"]) for entry in optim_results]
@@ -150,7 +150,9 @@ def deriveModels(original_df, proc_dict, optim_results, original_outdir, make_pl
     
     for entry in optim_results[:]:
       MX, MY = common.get_MX_MY(entry["sig_proc"])
+      if (masses_to_do != None) and ([MX, MY] not in masses_to_do): continue
       #if not (np.isin(MX, [300,400]) & (np.isin(MY, [80,90,100]))): continue
+      #if MY != 90: continue
       print(MX, MY)
 
       closest_mx = nominal_mxs[gridx[np.argmin(abs(gridx-argx(MX)))]]
@@ -165,6 +167,7 @@ def deriveModels(original_df, proc_dict, optim_results, original_outdir, make_pl
 
       to_fit_masses = [[mx, my] for mx in to_fit_mxs for my in to_fit_mys if (mx, my) in all_masses] #convenient to leave as list for tagSignals
       df_tagged = tagSignals(df_year, entry, proc_dict, to_fit_masses)
+      print(df_tagged)
       to_fit_masses = np.array(to_fit_masses)
 
       #for interpolation at combine level in MH (MY)
@@ -186,9 +189,12 @@ def deriveModels(original_df, proc_dict, optim_results, original_outdir, make_pl
         models[str(year)][str(SR)]["%d_%d"%(MX, MY)] = {}
 
         #set tiny norms to zero
+        print(df.MX)
+        print(df.MY)
+        print(closest_mx, closest_my)
         norm_closest = df.loc[(df.MX==closest_mx)&(df.MY==closest_my), "weight"].sum()/common.lumi_table[year]
         if norm_closest < 0.001:
-          popt = np.array([1, closest_my, 2, 1.2, 10, 1.2, 10]) #doesn't matter but give sensible numbers anyway
+          popt = np.array([1, 0.0, 2, 1.2, 10, 1.2, 10]) #doesn't matter but give sensible numbers anyway
           #models[str(year)][str(SR)]["%d_%d"%(MX, MY)] = {"%d_%d"%tuple(to_fit_masses[i]):{"norm": 0.0, "norm_err": 0.0} for i in range(len(to_fit_masses))}
           models[str(year)][str(SR)]["%d_%d"%(MX, MY)]["this mass"] = {"norm": 0.0, "norm_systematic": 1.0, "norm_spline":"linear", "parameters":list(popt), "skipped_mass":"%d_%d"%(closest_mx,closest_my), "closest_mass":"%d_%d"%(closest_mx,closest_my)}
           if do_same_score_interp:
@@ -293,6 +299,33 @@ def deriveModels(original_df, proc_dict, optim_results, original_outdir, make_pl
 #   signal_fit.plotFitComparison(bin_centers, sumw, errors, fit_range, popt_c, popt_check_c, os.path.join(outdir, "mx_%d_my_%d_shape_check.png"%(MX,MY)), normed=True)
 #   #signal_fit.plotFitComparison(bin_centers, sumw, errors, fit_range, popt_nominal, popt_interp, os.path.join(outdir, "mx_%d_interp_check_normed.png"%m), normed=True)
 
+def checkInterpolation(original_df, proc_dict, optim_results, original_outdir, make_plots=False, do_same_score_interp=False, fit_range_my=False):
+  nominal_masses = np.array([common.get_MX_MY(entry["sig_proc"]) for entry in optim_results if entry["sig_proc"] in proc_dict.keys()])
+
+  for mx, my in nominal_masses:
+    print(mx, my)
+    min_mx, max_mx = nominal_masses[:,0].min(), nominal_masses[:,0].max()
+    if (mx == min_mx) or (mx == max_mx):
+      continue
+
+    sig_proc = common.get_sig_proc(optim_results[0]["sig_proc"], mx, my)
+    pruned_proc_dict = proc_dict.copy()
+    del pruned_proc_dict[sig_proc]
+
+    masses_to_do = [[mx, my]]
+
+    new_dir = os.path.join(original_outdir, "Interpolation_Check", sig_proc)
+    os.makedirs(new_dir, exist_ok=True)
+    deriveModels(original_df, pruned_proc_dict, optim_results, new_dir, make_plots=make_plots, fit_range_my=fit_range_my, masses_to_do=masses_to_do)
+    break
+
+    # for 
+    # if fit_range_my:
+    #   fit_range = [my-10*(my/100),my+10*(my/100)] #if y->gg
+    # else:
+    #   fit_range = [112.5, 137.5] #everything else
+    # bin_centers, sumw, errors = signal_fit.histogram(df, fit_range, 50)
+
 def tagSignals(df, entry, proc_dict, to_fit_masses, use_same_score=False):
   pd.options.mode.chained_assignment = None
 
@@ -336,7 +369,9 @@ def main(args):
   with open(args.optim_results) as f:
      optim_results = json.load(f)
   
-  deriveModels(df, proc_dict, optim_results, args.outdir, args.make_plots, args.same_score_interp, args.fit_range_my)
+  #deriveModels(df, proc_dict, optim_results, args.outdir, args.make_plots, args.same_score_interp, args.fit_range_my)
+  if args.interp_checks:
+    checkInterpolation(df, proc_dict, optim_results, args.outdir, args.make_plots, args.same_score_interp, args.fit_range_my)
 
 if __name__=="__main__":
   parser = argparse.ArgumentParser()
@@ -347,6 +382,7 @@ if __name__=="__main__":
   parser.add_argument('--step', type=float, default=10.0)
   parser.add_argument('--batch', action="store_true")
   parser.add_argument('--make-plots', action="store_true")
+  parser.add_argument('--interp-checks', action="store_true")
   parser.add_argument('--same-score-interp', action="store_true", help="Fit models at different MC but within same category. Needed for interpolation at combine level.")
   parser.add_argument('--fit-range-my', action="store_true", help="Change fit range depending on my (for Y->gg)")
   args = parser.parse_args()

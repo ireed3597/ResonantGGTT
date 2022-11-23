@@ -1,6 +1,6 @@
 import os
 
-LOW_MASS_MODE = True
+LOW_MASS_MODE = False
 print('\033[93m')
 if LOW_MASS_MODE: print("Running in LOW MASS MODE")
 else:             print("Running in HIGH MASS MODE")
@@ -59,6 +59,8 @@ else:
     'VGamma': ['WGamma', 'ZGamma'],
     #'DY': ['DY'],
     #'VV': ['WW', 'ZZ', 'WZ']
+    #'DY': ['DYinvEveto'],
+    #'VV': ['WWinvEveto', 'ZZinvEveto', 'WZinvEveto']
   }
 bkg_procs["all"] = [proc for key in bkg_procs.keys() for proc in bkg_procs[key]]
 
@@ -77,6 +79,8 @@ train_features['important_16'] = ["LeadPhoton_ditau_dR", "dilep_leadpho_mass", "
 train_features['important_17'] = ["LeadPhoton_pt_mgg", "ditau_mass", "SubleadPhoton_lead_lepton_dR", "ditau_dR", "Diphoton_dPhi", "ditau_deta", "LeadPhoton_lead_lepton_dR", "Diphoton_pt_mgg", "reco_MX_MET", "Diphoton_ditau_deta", "lead_lepton_mass", "diphoton_met_dPhi", "Diphoton_lead_lepton_dphi", "ditau_pt", "category", "reco_MX", "Diphoton_sublead_lepton_dR", "MET_pt", "jet_1_pt", "ditau_dphi", "dilep_leadpho_mass", "Diphoton_dR", "lead_lepton_pt", "ditau_met_dPhi", "Diphoton_lead_lepton_dR", "reco_MggtauMET_mgg", "Diphoton_sublead_lepton_dphi", "LeadPhoton_ditau_dR", "Diphoton_lead_lepton_deta", "Diphoton_sublead_lepton_deta", "SubleadPhoton_pt_mgg", "Diphoton_ditau_dphi"]
 train_features['important_17_corr'] = ["LeadPhoton_pt_mgg", "ditau_mass", "SubleadPhoton_lead_lepton_dR", "ditau_dR", "Diphoton_dPhi", "ditau_deta", "LeadPhoton_lead_lepton_dR", "Diphoton_pt_mgg", "reco_MX_MET", "Diphoton_ditau_deta", "lead_lepton_mass", "diphoton_met_dPhi", "ditau_pt", "category", "Diphoton_sublead_lepton_dR", "MET_pt", "jet_1_pt", "ditau_dphi", "dilep_leadpho_mass", "lead_lepton_pt", "ditau_met_dPhi", "Diphoton_lead_lepton_dR", "reco_MggtauMET_mgg", "LeadPhoton_ditau_dR", "Diphoton_lead_lepton_deta", "Diphoton_sublead_lepton_deta", "SubleadPhoton_pt_mgg", "Diphoton_ditau_dphi"]
 train_features['important_17_corr_no_mggtau'] = ["LeadPhoton_pt_mgg", "ditau_mass", "SubleadPhoton_lead_lepton_dR", "ditau_dR", "Diphoton_dPhi", "ditau_deta", "LeadPhoton_lead_lepton_dR", "Diphoton_pt_mgg", "reco_MX_MET_mgg", "Diphoton_ditau_deta", "lead_lepton_mass", "diphoton_met_dPhi", "ditau_pt", "category", "Diphoton_sublead_lepton_dR", "MET_pt", "jet_1_pt", "ditau_dphi", "dilep_leadpho_mass", "lead_lepton_pt", "ditau_met_dPhi", "Diphoton_lead_lepton_dR", "LeadPhoton_ditau_dR", "Diphoton_lead_lepton_deta", "Diphoton_sublead_lepton_deta", "SubleadPhoton_pt_mgg", "Diphoton_ditau_dphi"]
+
+latex_dict = {'LeadPhoton_pt_mgg': r'$p_T^{\gamma_1}/m_{\gamma\gamma}$', 'ditau_mass': r'$m_{\tau\tau}$', 'SubleadPhoton_lead_lepton_dR': r'$\Delta R(\gamma_2, \tau_1)$', 'ditau_dR': r'$\Delta R(\tau\tau)$', 'Diphoton_dPhi': r'$\Delta\phi(\gamma\gamma)$', 'ditau_deta': r'$\Delta \eta(\tau\tau)$', 'LeadPhoton_lead_lepton_dR': r'$\Delta R(\gamma_1, \tau_1)$', 'Diphoton_pt_mgg': r'$p_T^{\gamma\gamma}/m_{\gamma\gamma}$', 'reco_MX_MET_mgg': r'$m(\gamma\gamma\tau\tau \mathrm{MET})/m_{\gamma\gamma}$', 'Diphoton_ditau_deta': r'$\Delta \eta(\gamma\gamma, \tau\tau)$', 'lead_lepton_mass': r'$m_{\tau_1}$', 'diphoton_met_dPhi': r'$\Delta \phi(\gamma\gamma, \mathrm{MET})$', 'ditau_pt': r'$p_T^{\tau\tau}$', 'category': r'$\mathrm{category}$', 'Diphoton_sublead_lepton_dR': r'$\Delta R(\gamma\gamma, \tau_2)$', 'MET_pt': r'$p_T^\mathrm{MET}$', 'jet_1_pt': r'$p_T^{j_1}$', 'ditau_dphi': r'$\Delta \phi(\tau\tau)$', 'dilep_leadpho_mass': r'$m(\tau\tau\gamma_1)$', 'lead_lepton_pt': r'$p_T^{\tau_1}$', 'ditau_met_dPhi': r'$\Delta \phi(\tau\tau, \mathrm{MET})$', 'Diphoton_lead_lepton_dR': r'$\Delta R(\gamma\gamma, \tau_1)$', 'LeadPhoton_ditau_dR': r'$\Delta R(\gamma_1, \tau\tau)$', 'Diphoton_lead_lepton_deta': r'$\Delta \eta(\gamma\gamma, \tau_1)$', 'Diphoton_sublead_lepton_deta': r'$\Delta \eta(\gamma\gamma, \tau_2)$', 'SubleadPhoton_pt_mgg': r'$p_T^{\gamma_2}/m_{\gamma\gamma}$', 'Diphoton_ditau_dphi': r'$\Delta \phi(\gamma\gamma, \tau\tau)$', 'Diphoton_mass': r'$m_{\gamma\gamma}$'}
 
 def get_MX_MY(sig_proc):
   if "NMSSM" in sig_proc:
