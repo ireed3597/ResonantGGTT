@@ -144,15 +144,12 @@ def deriveModels(original_df, proc_dict, optim_results, original_outdir, make_pl
   models = {str(year):{str(SR):{} for SR in range(nSR)} for year in np.unique(original_df.year)}
 
   for year in np.unique(original_df.year):
-  #for year in [2016]:
     print(year)
     df_year = original_df[original_df.year==year]
     
     for entry in optim_results[:]:
       MX, MY = common.get_MX_MY(entry["sig_proc"])
       if (masses_to_do != None) and ([MX, MY] not in masses_to_do): continue
-      #if not (np.isin(MX, [300,400]) & (np.isin(MY, [80,90,100]))): continue
-      #if MY != 90: continue
       print(MX, MY)
 
       closest_mx = nominal_mxs[gridx[np.argmin(abs(gridx-argx(MX)))]]
@@ -167,7 +164,6 @@ def deriveModels(original_df, proc_dict, optim_results, original_outdir, make_pl
 
       to_fit_masses = [[mx, my] for mx in to_fit_mxs for my in to_fit_mys if (mx, my) in all_masses] #convenient to leave as list for tagSignals
       df_tagged = tagSignals(df_year, entry, proc_dict, to_fit_masses)
-      print(df_tagged)
       to_fit_masses = np.array(to_fit_masses)
 
       #for interpolation at combine level in MH (MY)
@@ -179,8 +175,7 @@ def deriveModels(original_df, proc_dict, optim_results, original_outdir, make_pl
         to_fit_masses_same_score = np.array(to_fit_masses_same_score)
 
       for SR in range(len(entry["category_boundaries"])-1):
-      #for SR in [0]:
-        print(SR)
+        print(SR, flush=True)
         df = df_tagged[df_tagged.SR==SR]
         if do_same_score_interp: df_same_score = df_tagged_same_score[df_tagged_same_score.SR==SR]
 
@@ -189,9 +184,6 @@ def deriveModels(original_df, proc_dict, optim_results, original_outdir, make_pl
         models[str(year)][str(SR)]["%d_%d"%(MX, MY)] = {}
 
         #set tiny norms to zero
-        print(df.MX)
-        print(df.MY)
-        print(closest_mx, closest_my)
         norm_closest = df.loc[(df.MX==closest_mx)&(df.MY==closest_my), "weight"].sum()/common.lumi_table[year]
         if norm_closest < 0.001:
           popt = np.array([1, 0.0, 2, 1.2, 10, 1.2, 10]) #doesn't matter but give sensible numbers anyway
@@ -301,6 +293,7 @@ def deriveModels(original_df, proc_dict, optim_results, original_outdir, make_pl
 
 def checkInterpolation(original_df, proc_dict, optim_results, original_outdir, make_plots=False, do_same_score_interp=False, fit_range_my=False):
   nominal_masses = np.array([common.get_MX_MY(entry["sig_proc"]) for entry in optim_results if entry["sig_proc"] in proc_dict.keys()])
+  print(nominal_masses)
 
   for mx, my in nominal_masses:
     print(mx, my)
@@ -317,7 +310,7 @@ def checkInterpolation(original_df, proc_dict, optim_results, original_outdir, m
     new_dir = os.path.join(original_outdir, "Interpolation_Check", sig_proc)
     os.makedirs(new_dir, exist_ok=True)
     deriveModels(original_df, pruned_proc_dict, optim_results, new_dir, make_plots=make_plots, fit_range_my=fit_range_my, masses_to_do=masses_to_do)
-    break
+    #break
 
     # for 
     # if fit_range_my:
@@ -357,7 +350,7 @@ def tagSignals(df, entry, proc_dict, to_fit_masses, use_same_score=False):
 
 def main(args):
   if args.batch:
-    common.submitToBatch([sys.argv[0]] + common.parserToList(args), extra_memory=True)
+    common.submitToBatch([sys.argv[0]] + common.parserToList(args), extra_memory=args.batch_slots)
     return True
 
   df = pd.read_parquet(args.parquet_input)
@@ -369,7 +362,10 @@ def main(args):
   with open(args.optim_results) as f:
      optim_results = json.load(f)
   
-  #deriveModels(df, proc_dict, optim_results, args.outdir, args.make_plots, args.same_score_interp, args.fit_range_my)
+  if args.mass_points is not None:
+    optim_results = common.filterOptimResults(optim_results, args.mass_points)
+
+  deriveModels(df, proc_dict, optim_results, args.outdir, args.make_plots, args.same_score_interp, args.fit_range_my)
   if args.interp_checks:
     checkInterpolation(df, proc_dict, optim_results, args.outdir, args.make_plots, args.same_score_interp, args.fit_range_my)
 
@@ -381,10 +377,12 @@ if __name__=="__main__":
   parser.add_argument('--outdir', '-o', type=str, required=True)
   parser.add_argument('--step', type=float, default=10.0)
   parser.add_argument('--batch', action="store_true")
+  parser.add_argument('--batch-slots', type=int, default=1)
   parser.add_argument('--make-plots', action="store_true")
   parser.add_argument('--interp-checks', action="store_true")
   parser.add_argument('--same-score-interp', action="store_true", help="Fit models at different MC but within same category. Needed for interpolation at combine level.")
   parser.add_argument('--fit-range-my', action="store_true", help="Change fit range depending on my (for Y->gg)")
+  parser.add_argument('--mass-points', nargs="+", default=None, help="Only create signal models for these mass points. Provide a list of MX,MY like 300,125 400,150...")
   args = parser.parse_args()
   
   os.makedirs(args.outdir, exist_ok=True)

@@ -1,6 +1,11 @@
 import os
 
-LOW_MASS_MODE = False
+# get LOW_MASS_MODE from environment variable if exists, otherwise default to hard-coded value
+LOW_MASS_MODE = os.getenv("LOW_MASS_MODE")
+if LOW_MASS_MODE is None:
+  LOW_MASS_MODE = False
+else:
+  LOW_MASS_MODE = (LOW_MASS_MODE == "True")
 print('\033[93m')
 if LOW_MASS_MODE: print("Running in LOW MASS MODE")
 else:             print("Running in HIGH MASS MODE")
@@ -34,34 +39,66 @@ category_map = {
 }
 
 sig_procs = {
-  "X_HH": ['XToHHggTauTau_M260', 'XToHHggTauTau_M270', 'XToHHggTauTau_M280', 'XToHHggTauTau_M290', 'XToHHggTauTau_M300', 'XToHHggTauTau_M320', 'XToHHggTauTau_M350', 'XToHHggTauTau_M400', 'XToHHggTauTau_M450', 'XToHHggTauTau_M500', 'XToHHggTauTau_M550', 'XToHHggTauTau_M600', 'XToHHggTauTau_M650', 'XToHHggTauTau_M700', 'XToHHggTauTau_M750', 'XToHHggTauTau_M800', 'XToHHggTauTau_M900', 'XToHHggTauTau_M1000'],
-  "X_YH_Y_gg": ['NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_600', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_700', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_800', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_600', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_600', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_700', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_90'],
-  "X_YH_Y_tautau" : ['NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_700', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_500', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_600', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_500', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_600', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_500', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_700', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_500', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_600', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_800', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_90'],
-  "X_YH_Y_gg_low_mass": ['NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_90']
+  "Graviton": ['GluGluToBulkGravitonToHHTo2G2Tau_M-260', 'GluGluToBulkGravitonToHHTo2G2Tau_M-270', 'GluGluToBulkGravitonToHHTo2G2Tau_M-280', 'GluGluToBulkGravitonToHHTo2G2Tau_M-290', 'GluGluToBulkGravitonToHHTo2G2Tau_M-300', 'GluGluToBulkGravitonToHHTo2G2Tau_M-320', 'GluGluToBulkGravitonToHHTo2G2Tau_M-350', 'GluGluToBulkGravitonToHHTo2G2Tau_M-400', 'GluGluToBulkGravitonToHHTo2G2Tau_M-450', 'GluGluToBulkGravitonToHHTo2G2Tau_M-500', 'GluGluToBulkGravitonToHHTo2G2Tau_M-550', 'GluGluToBulkGravitonToHHTo2G2Tau_M-600', 'GluGluToBulkGravitonToHHTo2G2Tau_M-650', 'GluGluToBulkGravitonToHHTo2G2Tau_M-700', 'GluGluToBulkGravitonToHHTo2G2Tau_M-750', 'GluGluToBulkGravitonToHHTo2G2Tau_M-800', 'GluGluToBulkGravitonToHHTo2G2Tau_M-900', 'GluGluToBulkGravitonToHHTo2G2Tau_M-1000'],
+  "Radion": ['GluGluToRadionToHHTo2G2Tau_M-260', 'GluGluToRadionToHHTo2G2Tau_M-270', 'GluGluToRadionToHHTo2G2Tau_M-280', 'GluGluToRadionToHHTo2G2Tau_M-290', 'GluGluToRadionToHHTo2G2Tau_M-300', 'GluGluToRadionToHHTo2G2Tau_M-320', 'GluGluToRadionToHHTo2G2Tau_M-350', 'GluGluToRadionToHHTo2G2Tau_M-400', 'GluGluToRadionToHHTo2G2Tau_M-450', 'GluGluToRadionToHHTo2G2Tau_M-500', 'GluGluToRadionToHHTo2G2Tau_M-550', 'GluGluToRadionToHHTo2G2Tau_M-600', 'GluGluToRadionToHHTo2G2Tau_M-650', 'GluGluToRadionToHHTo2G2Tau_M-700', 'GluGluToRadionToHHTo2G2Tau_M-750', 'GluGluToRadionToHHTo2G2Tau_M-800', 'GluGluToRadionToHHTo2G2Tau_M-900', 'GluGluToRadionToHHTo2G2Tau_M-1000'],
+  "NMSSM_Y_tautau": ['NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_500', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_600', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_700', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_800', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_500', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_500', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_600', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_500', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_600', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_700', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_90']
+  #"X_HH": ['XToHHggTauTau_M260', 'XToHHggTauTau_M270', 'XToHHggTauTau_M280', 'XToHHggTauTau_M290', 'XToHHggTauTau_M300', 'XToHHggTauTau_M320', 'XToHHggTauTau_M350', 'XToHHggTauTau_M400', 'XToHHggTauTau_M450', 'XToHHggTauTau_M500', 'XToHHggTauTau_M550', 'XToHHggTauTau_M600', 'XToHHggTauTau_M650', 'XToHHggTauTau_M700', 'XToHHggTauTau_M750', 'XToHHggTauTau_M800', 'XToHHggTauTau_M900', 'XToHHggTauTau_M1000'],
+  #"X_YH_Y_gg": ['NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_600', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_700', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_800', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_600', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_600', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_700', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_90'],
+  #"X_YH_Y_tautau" : ['NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_700', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_500', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_600', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_500', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_600', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_500', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_700', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_500', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_800_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_600', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_200', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_300', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_600_MY_250', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_400', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_90', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_80', 'NMSSM_XYH_Y_tautau_H_gg_MX_400_MY_150', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_800', 'NMSSM_XYH_Y_tautau_H_gg_MX_300_MY_70', 'NMSSM_XYH_Y_tautau_H_gg_MX_700_MY_100', 'NMSSM_XYH_Y_tautau_H_gg_MX_900_MY_125', 'NMSSM_XYH_Y_tautau_H_gg_MX_500_MY_90'],
+  #"X_YH_Y_gg_low_mass": ['NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_90']
 }
-sig_procs["all"] = sig_procs["X_HH"] + sig_procs["X_YH_Y_gg"] + sig_procs["X_YH_Y_tautau"]
+#sig_procs["all"] = sig_procs["X_HH"] + sig_procs["X_YH_Y_gg"] + sig_procs["X_YH_Y_tautau"]
+if LOW_MASS_MODE:
+  sig_procs["NMSSM_Y_gg"] = ['NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_90', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_70', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_80', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_90']
+else:
+  #sig_procs["NMSSM_Y_gg"] = ['NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_600', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_700', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_800', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_600', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_100', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_600', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_700']
+  sig_procs["NMSSM_Y_gg"] = ['NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_600', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_700', 'NMSSM_XYH_Y_gg_H_tautau_MX_1000_MY_800', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_300_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_400_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_500_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_600_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_700_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_800_MY_600', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_125', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_150', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_200', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_250', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_300', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_400', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_500', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_600', 'NMSSM_XYH_Y_gg_H_tautau_MX_900_MY_700']
+
+sig_procs["all"] = sig_procs["Graviton"] + sig_procs["Radion"] + sig_procs["NMSSM_Y_tautau"] + sig_procs["NMSSM_Y_gg"]
+
+# if not LOW_MASS_MODE:
+#   bkg_procs = {
+#     'Diphoton': ['DiPhoton'],
+#     'GJets': ['GJets_HT-100To200', 'GJets_HT-200To400', 'GJets_HT-400To600', 'GJets_HT-40To100', 'GJets_HT-600ToInf'],
+#     'TT': ['TTGG', 'TTGamma', 'TTJets'],
+#     'SM Higgs': ['VBFH_M125', 'VH_M125', 'ggH_M125', 'ttH_M125'],
+#     'VGamma': ['WGamma', 'ZGamma'],
+#   }
+# else:
+#   bkg_procs = {
+#     #'Diphoton': ['DiPhoton40to80','DiPhoton'],
+#     'Diphoton': ['DiPhoton'],
+#     'GJets': ['GJets_HT-100To200', 'GJets_HT-200To400', 'GJets_HT-400To600', 'GJets_HT-40To100', 'GJets_HT-600ToInf'],
+#     'TT': ['TTGG', 'TTGamma', 'TTJets'],
+#     'SM Higgs': ['VBFH_M125', 'VH_M125', 'ggH_M125', 'ttH_M125'],
+#     'VGamma': ['WGamma', 'ZGamma'],
+#     'DY': ['DY'],
+#     'VV': ['WW', 'ZZ', 'WZ']
+#     #'DY': ['DYinvEveto'],
+#     #'VV': ['WWinvEveto', 'ZZinvEveto', 'WZinvEveto']
+#   }
 
 if not LOW_MASS_MODE:
   bkg_procs = {
     'Diphoton': ['DiPhoton'],
-    'GJets': ['GJets_HT-100To200', 'GJets_HT-200To400', 'GJets_HT-400To600', 'GJets_HT-40To100', 'GJets_HT-600ToInf'],
+    'GJets': ['GJets'],
     'TT': ['TTGG', 'TTGamma', 'TTJets'],
     'SM Higgs': ['VBFH_M125', 'VH_M125', 'ggH_M125', 'ttH_M125'],
-    'VGamma': ['WGamma', 'ZGamma'],
+    'VGamma': ['WGamma', 'ZGamma']
   }
 else:
   bkg_procs = {
     #'Diphoton': ['DiPhoton40to80','DiPhoton'],
     'Diphoton': ['DiPhoton'],
-    'GJets': ['GJets_HT-100To200', 'GJets_HT-200To400', 'GJets_HT-400To600', 'GJets_HT-40To100', 'GJets_HT-600ToInf'],
+    'GJets': ['GJets'],
     'TT': ['TTGG', 'TTGamma', 'TTJets'],
     'SM Higgs': ['VBFH_M125', 'VH_M125', 'ggH_M125', 'ttH_M125'],
     'VGamma': ['WGamma', 'ZGamma'],
-    #'DY': ['DY'],
-    #'VV': ['WW', 'ZZ', 'WZ']
-    #'DY': ['DYinvEveto'],
-    #'VV': ['WWinvEveto', 'ZZinvEveto', 'WZinvEveto']
+    'DY': ['DY'],
+    'VV': ['WW', 'ZZ', 'WZ']
   }
+
+
 bkg_procs["all"] = [proc for key in bkg_procs.keys() for proc in bkg_procs[key]]
 
 weights_systematics = ['weight_tau_idDeepTauVSe_sf_AnalysisTau_central', 'weight_tau_idDeepTauVSjet_sf_AnalysisTau_down', 'weight_muon_id_sfSTAT_SelectedMuon_down', 'weight_central_initial', 'weight_tau_idDeepTauVSjet_sf_AnalysisTau_up', 'weight_muon_iso_sfSTAT_SelectedMuon_down', 'weight_muon_id_sfSYS_SelectedMuon_central', 'weight_muon_iso_sfSYS_SelectedMuon_up', 'weight_electron_id_sf_SelectedElectron_up', 'weight_puWeight_up', 'weight_electron_id_sf_SelectedElectron_central', 'weight_tau_idDeepTauVSmu_sf_AnalysisTau_up', 'weight_muon_iso_sfSYS_SelectedMuon_down', 'weight_puWeight_down', 'weight_electron_id_sf_SelectedElectron_down', 'weight_central_no_lumi', 'weight_muon_id_sfSYS_SelectedMuon_up', 'weight_muon_id_sfSTAT_SelectedMuon_central', 'weight_tau_idDeepTauVSjet_sf_AnalysisTau_central', 'weight_trigger_sf_central', 'weight_electron_veto_sf_Diphoton_Photon_central', 'weight_muon_iso_sfSTAT_SelectedMuon_central', 'weight_L1_prefiring_sf_up', 'weight_electron_veto_sf_Diphoton_Photon_down', 'weight_muon_id_sfSTAT_SelectedMuon_up', 'weight_electron_veto_sf_Diphoton_Photon_up', 'weight_muon_iso_sfSYS_SelectedMuon_central', 'weight_puWeight_central', 'weight_L1_prefiring_sf_down', 'weight_muon_id_sfSYS_SelectedMuon_down', 'weight_muon_iso_sfSTAT_SelectedMuon_up', 'weight_trigger_sf_down', 'weight_trigger_sf_up', 'weight_tau_idDeepTauVSmu_sf_AnalysisTau_down', 'weight_L1_prefiring_sf_central', 'weight_tau_idDeepTauVSe_sf_AnalysisTau_down', 'weight_tau_idDeepTauVSmu_sf_AnalysisTau_central', 'weight_tau_idDeepTauVSe_sf_AnalysisTau_up']
@@ -80,7 +117,26 @@ train_features['important_17'] = ["LeadPhoton_pt_mgg", "ditau_mass", "SubleadPho
 train_features['important_17_corr'] = ["LeadPhoton_pt_mgg", "ditau_mass", "SubleadPhoton_lead_lepton_dR", "ditau_dR", "Diphoton_dPhi", "ditau_deta", "LeadPhoton_lead_lepton_dR", "Diphoton_pt_mgg", "reco_MX_MET", "Diphoton_ditau_deta", "lead_lepton_mass", "diphoton_met_dPhi", "ditau_pt", "category", "Diphoton_sublead_lepton_dR", "MET_pt", "jet_1_pt", "ditau_dphi", "dilep_leadpho_mass", "lead_lepton_pt", "ditau_met_dPhi", "Diphoton_lead_lepton_dR", "reco_MggtauMET_mgg", "LeadPhoton_ditau_dR", "Diphoton_lead_lepton_deta", "Diphoton_sublead_lepton_deta", "SubleadPhoton_pt_mgg", "Diphoton_ditau_dphi"]
 train_features['important_17_corr_no_mggtau'] = ["LeadPhoton_pt_mgg", "ditau_mass", "SubleadPhoton_lead_lepton_dR", "ditau_dR", "Diphoton_dPhi", "ditau_deta", "LeadPhoton_lead_lepton_dR", "Diphoton_pt_mgg", "reco_MX_MET_mgg", "Diphoton_ditau_deta", "lead_lepton_mass", "diphoton_met_dPhi", "ditau_pt", "category", "Diphoton_sublead_lepton_dR", "MET_pt", "jet_1_pt", "ditau_dphi", "dilep_leadpho_mass", "lead_lepton_pt", "ditau_met_dPhi", "Diphoton_lead_lepton_dR", "LeadPhoton_ditau_dR", "Diphoton_lead_lepton_deta", "Diphoton_sublead_lepton_deta", "SubleadPhoton_pt_mgg", "Diphoton_ditau_dphi"]
 
+# same as important_17_corr_no_mggtau except change reco_MX_MET_mgg -> reco_MX_mgg (svfit has MET incorporated)
+train_features['preapproval'] = ["LeadPhoton_pt_mgg", "ditau_mass", "SubleadPhoton_lead_lepton_dR", "ditau_dR", "Diphoton_dPhi", "ditau_deta", "LeadPhoton_lead_lepton_dR", "Diphoton_pt_mgg", "reco_MX_mgg", "Diphoton_ditau_deta", "lead_lepton_mass", "diphoton_met_dPhi", "ditau_pt", "category", "Diphoton_sublead_lepton_dR", "MET_pt", "jet_1_pt", "ditau_dphi", "dilep_leadpho_mass", "lead_lepton_pt", "ditau_met_dPhi", "Diphoton_lead_lepton_dR", "LeadPhoton_ditau_dR", "Diphoton_lead_lepton_deta", "Diphoton_sublead_lepton_deta", "SubleadPhoton_pt_mgg", "Diphoton_ditau_dphi"]
+
+train_features['test_no_lead_lepton_mass'] = ["LeadPhoton_pt_mgg", "ditau_mass", "SubleadPhoton_lead_lepton_dR", "ditau_dR", "Diphoton_dPhi", "ditau_deta", "LeadPhoton_lead_lepton_dR", "Diphoton_pt_mgg", "reco_MX_MET_mgg", "Diphoton_ditau_deta", "diphoton_met_dPhi", "ditau_pt", "category", "Diphoton_sublead_lepton_dR", "MET_pt", "jet_1_pt", "ditau_dphi", "dilep_leadpho_mass", "lead_lepton_pt", "ditau_met_dPhi", "Diphoton_lead_lepton_dR", "LeadPhoton_ditau_dR", "Diphoton_lead_lepton_deta", "Diphoton_sublead_lepton_deta", "SubleadPhoton_pt_mgg", "Diphoton_ditau_dphi"]
+train_features['test_no_the_rest'] = ["LeadPhoton_pt_mgg", "ditau_mass", "ditau_dR", "Diphoton_dPhi", "ditau_deta", "Diphoton_pt_mgg", "reco_MX_MET_mgg", "Diphoton_ditau_deta", "lead_lepton_mass", "diphoton_met_dPhi", "ditau_pt", "category", "MET_pt", "jet_1_pt", "ditau_dphi", "dilep_leadpho_mass", "lead_lepton_pt", "ditau_met_dPhi", "LeadPhoton_ditau_dR", "Diphoton_lead_lepton_deta", "Diphoton_sublead_lepton_deta", "SubleadPhoton_pt_mgg", "Diphoton_ditau_dphi"]
+
+train_features['svfit_investigation_all'] = ["LeadPhoton_pt_mgg", "ditau_mass", "ditau_mass_SVFit", "SubleadPhoton_lead_lepton_dR", "ditau_dR", "ditau_dR_SVFit", "Diphoton_dPhi", "ditau_deta", "ditau_deta_SVFit", "LeadPhoton_lead_lepton_dR", "Diphoton_pt_mgg", "reco_MX_MET_mgg", "reco_MX_SVFit_mgg", "Diphoton_ditau_deta", "Diphoton_ditau_dR_SVFit", "lead_lepton_mass", "diphoton_met_dPhi", "ditau_pt", "category", "Diphoton_sublead_lepton_dR", "MET_pt", "jet_1_pt", "ditau_dphi", "ditau_dphi_SVFit", "dilep_leadpho_mass", "lead_lepton_pt", "ditau_met_dPhi", "Diphoton_lead_lepton_dR", "LeadPhoton_ditau_dR", "Diphoton_lead_lepton_deta", "Diphoton_sublead_lepton_deta", "SubleadPhoton_pt_mgg", "Diphoton_ditau_dphi", "Diphoton_ditau_dphi_SVFit"]
+train_features['svfit_investigation_visible'] = train_features['important_17_corr_no_mggtau']
+train_features['svfit_investigation_svfit'] = ["LeadPhoton_pt_mgg", "ditau_mass_SVFit", "SubleadPhoton_lead_lepton_dR", "ditau_dR_SVFit", "Diphoton_dPhi", "ditau_deta_SVFit", "LeadPhoton_lead_lepton_dR", "Diphoton_pt_mgg", "reco_MX_SVFit_mgg", "Diphoton_ditau_dR_SVFit", "lead_lepton_mass", "diphoton_met_dPhi", "ditau_pt", "category", "Diphoton_sublead_lepton_dR", "MET_pt", "jet_1_pt", "ditau_dphi_SVFit", "dilep_leadpho_mass", "lead_lepton_pt", "ditau_met_dPhi", "Diphoton_lead_lepton_dR", "LeadPhoton_ditau_dR", "Diphoton_lead_lepton_deta", "Diphoton_sublead_lepton_deta", "SubleadPhoton_pt_mgg", "Diphoton_ditau_dphi_SVFit"]
+train_features['svfit_investigation_hybrid'] = ["LeadPhoton_pt_mgg", "ditau_mass_SVFit", "SubleadPhoton_lead_lepton_dR", "ditau_dR", "ditau_dR_SVFit", "Diphoton_dPhi", "ditau_deta", "ditau_deta_SVFit", "LeadPhoton_lead_lepton_dR", "Diphoton_pt_mgg", "reco_MX_SVFit_mgg", "Diphoton_ditau_deta", "Diphoton_ditau_dR_SVFit", "lead_lepton_mass", "diphoton_met_dPhi", "ditau_pt", "category", "Diphoton_sublead_lepton_dR", "MET_pt", "jet_1_pt", "ditau_dphi", "ditau_dphi_SVFit", "dilep_leadpho_mass", "lead_lepton_pt", "ditau_met_dPhi", "Diphoton_lead_lepton_dR", "LeadPhoton_ditau_dR", "Diphoton_lead_lepton_deta", "Diphoton_sublead_lepton_deta", "SubleadPhoton_pt_mgg", "Diphoton_ditau_dphi", "Diphoton_ditau_dphi_SVFit"]
+
+
 latex_dict = {'LeadPhoton_pt_mgg': r'$p_T^{\gamma_1}/m_{\gamma\gamma}$', 'ditau_mass': r'$m_{\tau\tau}$', 'SubleadPhoton_lead_lepton_dR': r'$\Delta R(\gamma_2, \tau_1)$', 'ditau_dR': r'$\Delta R(\tau\tau)$', 'Diphoton_dPhi': r'$\Delta\phi(\gamma\gamma)$', 'ditau_deta': r'$\Delta \eta(\tau\tau)$', 'LeadPhoton_lead_lepton_dR': r'$\Delta R(\gamma_1, \tau_1)$', 'Diphoton_pt_mgg': r'$p_T^{\gamma\gamma}/m_{\gamma\gamma}$', 'reco_MX_MET_mgg': r'$m(\gamma\gamma\tau\tau \mathrm{MET})/m_{\gamma\gamma}$', 'Diphoton_ditau_deta': r'$\Delta \eta(\gamma\gamma, \tau\tau)$', 'lead_lepton_mass': r'$m_{\tau_1}$', 'diphoton_met_dPhi': r'$\Delta \phi(\gamma\gamma, \mathrm{MET})$', 'ditau_pt': r'$p_T^{\tau\tau}$', 'category': r'$\mathrm{category}$', 'Diphoton_sublead_lepton_dR': r'$\Delta R(\gamma\gamma, \tau_2)$', 'MET_pt': r'$p_T^\mathrm{MET}$', 'jet_1_pt': r'$p_T^{j_1}$', 'ditau_dphi': r'$\Delta \phi(\tau\tau)$', 'dilep_leadpho_mass': r'$m(\tau\tau\gamma_1)$', 'lead_lepton_pt': r'$p_T^{\tau_1}$', 'ditau_met_dPhi': r'$\Delta \phi(\tau\tau, \mathrm{MET})$', 'Diphoton_lead_lepton_dR': r'$\Delta R(\gamma\gamma, \tau_1)$', 'LeadPhoton_ditau_dR': r'$\Delta R(\gamma_1, \tau\tau)$', 'Diphoton_lead_lepton_deta': r'$\Delta \eta(\gamma\gamma, \tau_1)$', 'Diphoton_sublead_lepton_deta': r'$\Delta \eta(\gamma\gamma, \tau_2)$', 'SubleadPhoton_pt_mgg': r'$p_T^{\gamma_2}/m_{\gamma\gamma}$', 'Diphoton_ditau_dphi': r'$\Delta \phi(\gamma\gamma, \tau\tau)$', 'Diphoton_mass': r'$m_{\gamma\gamma}$'}
+
+import fnmatch
+def expandSigProcs(sig_procs_to_expand):
+  expanded_sig_procs = []
+  for sig_proc in sig_procs_to_expand:
+    expanded_sig_procs.extend(list(filter(lambda string: fnmatch.fnmatch(string, sig_proc), sig_procs["all"])))
+  return expanded_sig_procs
 
 def get_MX_MY(sig_proc):
   if "NMSSM" in sig_proc:
@@ -89,6 +145,9 @@ def get_MX_MY(sig_proc):
     MY = float(split_name[9])
   elif "XToHHggTauTau" in sig_proc:
     MX = float(sig_proc.split("_")[1][1:])
+    MY = 125.0
+  elif "HHTo2G2Tau" in sig_proc:
+    MX = float(sig_proc.split("-")[1])
     MY = 125.0
   else:
     raise Exception("Unexpected signal process: %s"%sig_proc)
@@ -101,13 +160,17 @@ def get_sig_proc(example_sig_proc, mx, my):
     return "NMSSM_XYH_Y_gg_H_tautau_MX_%d_MY_%d"%(mx, my)
   elif "NMSSM_XYH_Y_tautau_H_gg" in example_sig_proc:
     return "NMSSM_XYH_Y_tautau_H_gg_MX_%d_MY_%d"%(mx, my)
+  elif "GluGluToBulkGravitonToHHTo2G2Tau_M" in example_sig_proc:
+    return "GluGluToBulkGravitonToHHTo2G2Tau_M-%d"%mx
+  elif "GluGluToRadionToHHTo2G2Tau_M" in example_sig_proc:
+    return "GluGluToRadionToHHTo2G2Tau_M-%d"%mx
 
 def add_MX_MY(df, proc_dict):
   #get sig_procs in parquet file
   sig_procs_in = [sig_proc for sig_proc in sig_procs["all"] if sig_proc in proc_dict.keys()]
 
-  df["MX"] = dummy_val
-  df["MY"] = dummy_val
+  df["MX"] = np.single(dummy_val)
+  df["MY"] = np.single(dummy_val)
   
   for sig_proc in sig_procs_in:
     MX, MY = get_MX_MY(sig_proc)
@@ -144,21 +207,29 @@ def submitToBatch(argv, extra_memory=False, quick=False):
   COMMAND.remove("--batch")
   COMMAND = " ".join(COMMAND)
   
+  print('\033[93m')
+  if LOW_MASS_MODE and ("low_mass" not in COMMAND.lower()):
+    print("WARNING: running in LOW_MASS_MODE but no low mass directories found in commnad")
+  elif ("low_mass" in COMMAND.lower()) and not LOW_MASS_MODE:
+    print("WARNING: low mass directories referred to but LOW_MASS_MODE is not activated")
+  print('\033[0m')
+
   PWD = os.getcwd()
 
   with open("batch_template.sh", "r") as f:
     template = f.read()
   filled_template = template % {
     "PWD": PWD,
-    "COMMAND": COMMAND
+    "COMMAND": COMMAND,
+    "LOW_MASS_MODE": LOW_MASS_MODE
   }
 
   os.makedirs("batch", exist_ok=True)
   
   script_name = argv[0].replace("/", "_").replace(".", "_")
-  existing_files = list(filter(lambda x: script_name in x, os.listdir("batch")))
+  existing_files = list(filter(lambda x: (script_name in x) and (x[-3:] == ".sh"), os.listdir("batch")))
 
-  script_path = "batch/%s_%d.sh"%(script_name, len(existing_files)+1)
+  script_path = os.path.join(os.getcwd(), "batch", "%s_%d.sh"%(script_name, len(existing_files)+1))
   with open(script_path, "w") as f:
     f.write(filled_template)
 
@@ -168,16 +239,25 @@ def submitToBatch(argv, extra_memory=False, quick=False):
   else:
     slots = extra_memory
 
-  if not quick:  submit_command = "qsub -q hep.q -l h_vmem=24G -l h_rt=3:0:0 -pe hep.pe %d %s"%(slots, script_path)
-  else:          submit_command = "qsub -q hep.q -l h_vmem=24G -l h_rt=600 %s"%script_path
+  if not quick:  submit_command = f"qsub -q hep.q -l h_vmem=24G -l h_rt=3:0:0 -pe hep.pe {slots} -o {script_path}.out -e {script_path}.err {script_path}"
+  else:          submit_command = f"qsub -q hep.q -l h_vmem=24G -l h_rt=600 -o {script_path}.out -e {script_path}.err {script_path}"
+  print(submit_command)
   os.system(submit_command)
 
 from pyarrow.parquet import ParquetFile
 def getColumns(parquet_file):
   pf = ParquetFile(parquet_file) 
   columns = [each.name for each in pf.schema]
-  columns.remove("__index_level_0__")
+  if "__index_level_0__" in columns:
+    columns.remove("__index_level_0__")
   return columns
+
+import pyarrow
+def getTestSample(parquet_input, size=100, columns=None):
+  pf = pyarrow.parquet.ParquetFile(parquet_input) 
+  iter = pf.iter_batches(batch_size = size, columns=columns)
+  first_rows = next(iter) 
+  return pyarrow.Table.from_batches([first_rows]).to_pandas()
 
 import json
 import numpy as np
@@ -191,3 +271,15 @@ class NumpyEncoder(json.JSONEncoder):
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
         return json.JSONEncoder.default(self, obj)
+    
+def filterOptimResults(optim_results, mass_points):
+  new_optim_results = []
+  for mass_point in mass_points:
+    MX, MY = mass_point.split(",")
+    MX = float(MX)
+    MY = float(MY)
+
+    for optim_result in optim_results:
+      if get_MX_MY(optim_result["sig_proc"]) == (MX, MY):
+        new_optim_results.append(optim_result)
+  optim_results = new_optim_results

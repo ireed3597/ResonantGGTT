@@ -39,12 +39,19 @@ def plotChecks(df, proc_dict, optim_results, args):
 
     for year in tagged_df.year.unique():
       for SR in tagged_df.SR.unique():
+        print(year, SR)
 
         if args.fit_range_my:
           fit_range = [my-10*(my/100),my+10*(my/100)] #if y->gg
         else:
           fit_range = [112.5, 137.5] #everything else
-        bin_centers, sumw, errors = histogram(tagged_df[(tagged_df.year==year)&(tagged_df.SR==SR)], fit_range, 50)
+
+        s = (tagged_df.year==year)&(tagged_df.SR==SR)
+        if s.sum() < 100:
+          print("Not plotting because not enough events")
+          continue
+
+        bin_centers, sumw, errors = histogram(tagged_df[s], fit_range, 50)
 
         popt_nom = nominal_model[str(year)][str(SR)]["%d_%d"%(mx, my)]["this mass"]["parameters"]
         popt_interp = interp_model[str(year)][str(SR)]["%d_%d"%(mx, my)]["this mass"]["parameters"]

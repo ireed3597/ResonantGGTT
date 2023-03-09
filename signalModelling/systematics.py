@@ -176,6 +176,14 @@ def deriveYieldSystematic(df, systematic, mass):
     variation_down = 1 + abs(1 - down/central)
     variation_mean = (variation_up + variation_down)/2
 
+    # print(variation_down, variation_down, abs(variation_up-variation_mean)/variation_mean, abs(variation_down-variation_mean)/variation_mean)
+    # if (abs(variation_up-variation_mean)/variation_mean) > 0.1:
+    #   print("Up variation too different from mean")
+    #   print(variation_mean, variation_up,abs(variation_up-variation_mean)/variation_mean )
+    # if (abs(variation_down-variation_mean)/variation_mean) > 0.1:
+    #   print("down variation too different from mean")
+    #   print(variation_mean, variation_down,abs(variation_down-variation_mean)/variation_mean )
+
   return float(variation_mean)
 
 def getYieldSystematicsNames(original_df):
@@ -239,7 +247,8 @@ def deriveParquetShapeSystematics(dfs, systematic, mass):
 
 def deriveSystematics(dfs, original_outdir):
   yield_systematics = getYieldSystematicsNames(dfs["nominal"])
-  parquet_yield_systematics = ["JER", "JES", "MET_JER", "MET_JES", "MET_Unclustered", "Muon_pt", "Tau_pt"]
+  #parquet_yield_systematics = ["JER", "JES", "MET_JER", "MET_JES", "MET_Unclustered", "Muon_pt", "Tau_pt"]
+  parquet_yield_systematics = ["JER", "JES", "MET_JES", "MET_Unclustered", "Muon_pt", "Tau_pt"]
   parquet_shape_systematics = ["fnuf", "material", "scale", "smear"]
   #parquet_yield_systematics = ["JER"]
   #parquet_shape_systematics = ["fnuf"]
@@ -363,7 +372,8 @@ def loadDataFrame(path, proc_dict, optim_dir, columns=None, sample_fraction=1.0)
   df = pd.read_parquet(path, columns=columns)
   df = df[df.y==1]
   #df = df[df.process_id==proc_dict["NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_600"]]
-  if sample_fraction != 1.0 :df = df.sample(frac=sample_fraction)  
+  if sample_fraction != 1.0 :
+    df = df.sample(frac=sample_fraction)  
 
   common.add_MX_MY(df, proc_dict)
   tagSignals(df, optim_dir, proc_dict)

@@ -76,6 +76,7 @@ def main(args):
   df = pd.read_parquet(args.parquet_input, columns=columns)
 
   #df = df[(df.Diphoton_mass>85)&(df.Diphoton_mass<95)]
+  #df = df[(df.Diphoton_mass>91-1.08)&(df.Diphoton_mass<91+1.08)]
   #df = df[~df.category.isin([7,8])]
 
   with open(args.optim_results) as f:
@@ -112,10 +113,13 @@ def main(args):
         SRs = np.sort(tagged_df.SR.unique())
         if args.dropLastCat: SRs = SRs[:-1]
         for SR in SRs:
+          cat_name = "%scat%d"%(proc_name, SR)
+          if args.controlRegions:
+            cat_name += "cr"
           if args.combineYears and (i==0):
-            writeOutputTree(data[(data.SR==SR)].Diphoton_mass, data[(data.SR==SR)].weight, "Data", "%scat%d"%(proc_name, SR), "combined")
+            writeOutputTree(data[(data.SR==SR)].Diphoton_mass, data[(data.SR==SR)].weight, "Data", cat_name, "combined")
           elif not args.combineYears:
-            writeOutputTree(data[(data.SR==SR)&(data.year==year)].Diphoton_mass, data[(data.SR==SR)&(data.year==year)].weight, "Data", "%scat%d"%(proc_name, SR), year)
+            writeOutputTree(data[(data.SR==SR)&(data.year==year)].Diphoton_mass, data[(data.SR==SR)&(data.year==year)].weight, "Data", cat_name, year)
 
           #writeOutputTree(sig[(sig.SR==SR)&(sig.year==year)].Diphoton_mass, sig[(sig.SR==SR)&(sig.year==year)].weight, proc_name, "%scat%d"%(proc_name, SR), year, undo_lumi_scaling=True)
 
@@ -130,6 +134,7 @@ if __name__=="__main__":
   parser.add_argument('--justYields', action="store_true")
   parser.add_argument('--batch', action="store_true")
   parser.add_argument('--batch-slots', type=int, default=1)
+  parser.add_argument('--controlRegions', action="store_true")
   args = parser.parse_args()
   
   os.makedirs(args.outdir, exist_ok=True)

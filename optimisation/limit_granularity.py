@@ -43,6 +43,11 @@ def loadDataFrame(args, scores):
   return bkg, sigs, proc_dict
 
 def getLimit(sigs, bkg, optim_results_dict, m_MC, m_cats):
+  """
+  Expected limit found for a singal (m_MC) when using the categories that target
+  a different mass point (m_cats).
+  """
+
   proc_MC = common.get_sig_proc(list(optim_results_dict.keys())[0], m_MC[0], m_MC[1])
   proc_cats = common.get_sig_proc(list(optim_results_dict.keys())[0], m_cats[0], m_cats[1])
   
@@ -71,7 +76,8 @@ def getFactors(n):
 def getNominalMasses(optim_results):
   masses = []
   for entry in optim_results:
-    if "optimal_limit" not in entry.keys(): continue
+    if "optimal_limit" not in entry.keys(): 
+      continue
     mx, my = common.get_MX_MY(entry["sig_proc"])
     masses.append([mx, my])
   return np.array(masses)
@@ -82,12 +88,6 @@ def getPoints(f, grad, m1, m2):
   n_points = int(np.ceil((m2-m1) / spacing))
   spacing = (m2-m1) / n_points
   assert spacing >= 1
-  
-  #force spacing to be an integer
-  #factors = getFactors(m2-m1)
-  #spacing = max(factors[factors<=spacing])
-  #n_points = int((m2-m1)/spacing)
-  #points = [m1+spacing*i for i in range(n_points)]
 
   points = [int(m1+spacing*i) for i in range(n_points)]
 
@@ -99,6 +99,8 @@ def main(args):
   optim_results_dict = {each["sig_proc"]:each for each in optim_results}
   scores = [entry["score"] for entry in optim_results]
 
+  args.sig_procs = common.expandSigProcs(args.sig_procs)
+
   bkg, sigs, proc_dict = loadDataFrame(args, scores)
 
   pres = get_pres(list(sigs.keys())[0])
@@ -108,7 +110,6 @@ def main(args):
   os.makedirs(args.outdir, exist_ok=True)
 
   nominal_masses = getNominalMasses(optim_results)
-  #nominal_masses=nominal_masses[nominal_masses[:,0]<600]
   
   interpoints_my = {}
 
@@ -119,22 +120,24 @@ def main(args):
 
     for i, mx in enumerate(mxs):
       to_plot_mx = mxs[np.argsort(abs(mxs-mx))][:5]
+      # MC for [mx, my] in categories targetting [plot_mx, my]
       limits = np.array([getLimit(sigs, bkg, optim_results_dict, [mx, my], [plot_mx, my]) for plot_mx in to_plot_mx])
-
-      print(mx, my, limits[0])
 
       rel_change = limits/limits[0] - 1
       plt.scatter(to_plot_mx, rel_change)
-      plt.xlabel(r"$m_X$")
+      plt.xlabel(r"$m_X$ that categories target")
       plt.ylabel("Relative change in limit")
-      plt.title(r"$m_X=%d, m_Y=%d$"%(mx, my))
+      plt.title(r"MC for $m_X=%d, m_Y=%d$"%(mx, my))
       plt.savefig(os.path.join(args.outdir, "mx_%d_my_%d_mx.png"%(mx, my)))
       plt.clf()
 
-      if i == len(mxs)-1: continue #if reached last one
+      if i == len(mxs)-1: #if reached last one
+        continue 
       above_mx = mxs[i+1]
-      if i == 0: below_mx = mxs[i+1]
-      else:      below_mx = mxs[i-1]
+      if i == 0: 
+        below_mx = mxs[i+1]
+      else:      
+        below_mx = mxs[i-1]
       nominal_limit = limits[to_plot_mx==mx]
       above_limit = limits[to_plot_mx==above_mx]
       below_limit = limits[to_plot_mx==below_mx]
@@ -151,7 +154,8 @@ def main(args):
 
   for mx in np.unique(nominal_masses[:,0]):
     mys = nominal_masses[:,1][nominal_masses[:,0]==mx]
-    if len(mys) == 1: continue
+    if len(mys) == 1: 
+      continue
     mys = np.sort(mys)
     interpoints = []
     for i, my in enumerate(mys):
@@ -166,10 +170,13 @@ def main(args):
       plt.savefig(os.path.join(args.outdir, "mx_%d_my_%d_my.png"%(mx, my)))
       plt.clf()
 
-      if i == len(mys)-1: continue #if reached last one
+      if i == len(mys)-1: 
+        continue #if reached last one
       above_my = mys[i+1]
-      if i == 0: below_my = mys[i+1]
-      else:      below_my = mys[i-1]
+      if i == 0: 
+        below_my = mys[i+1]
+      else:      
+        below_my = mys[i-1]
       nominal_limit = limits[to_plot_my==my]
       above_limit = limits[to_plot_my==above_my]
       below_limit = limits[to_plot_my==below_my]

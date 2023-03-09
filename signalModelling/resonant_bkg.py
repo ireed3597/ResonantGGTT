@@ -76,7 +76,8 @@ def deriveModels(dfs, proc_dict, optim_results, original_outdir, make_plots=Fals
   if systematics:
     systematics = {str(year):{str(SR):{} for SR in range(nSR)} for year in np.unique(dfs["nominal"].year)}
     yield_systematics = syst.getYieldSystematicsNames(dfs["nominal"])
-    parquet_yield_systematics = ["JER", "JES", "MET_JER", "MET_JES", "MET_Unclustered", "Muon_pt", "Tau_pt"]
+    #parquet_yield_systematics = ["JER", "JES", "MET_JER", "MET_JES", "MET_Unclustered", "Muon_pt", "Tau_pt"]
+    parquet_yield_systematics = ["JER", "JES", "MET_JES", "MET_Unclustered", "Muon_pt", "Tau_pt"]
     parquet_shape_systematics = ["fnuf", "material", "scale", "smear"]
     #parquet_yield_systematics = ["JER"]
     #parquet_shape_systematics = ["fnuf"]
@@ -86,7 +87,7 @@ def deriveModels(dfs, proc_dict, optim_results, original_outdir, make_plots=Fals
     print(year)
     for entry in optim_results:
       MX, MY = common.get_MX_MY(entry["sig_proc"])
-      if MY != 90: continue
+      #if MY != 90: continue
       mass = "%d_%d"%(MX, MY)
       print(mass)
       for key,df in dfs.items():
@@ -252,6 +253,9 @@ def main(args):
   with open(args.optim_results) as f:
      optim_results = json.load(f)
 
+  if args.mass_points is not None:
+    optim_results = common.filterOptimResults(optim_results, args.mass_points)
+
   dfs = loadDataFrames(args, proc_dict)
 
   deriveModels(dfs, proc_dict, optim_results, args.outdir, make_plots=args.make_plots, systematics=args.systematics)  
@@ -268,6 +272,7 @@ if __name__=="__main__":
   parser.add_argument('--make-plots', action="store_true")
   parser.add_argument('--systematics', action="store_true")
   parser.add_argument('--dataset-fraction', type=float, default=1.0)
+  parser.add_argument('--mass-points', nargs="+", default=None, help="Only create signal models for these mass points. Provide a list of MX,MY like 300,125 400,150...")
   args = parser.parse_args()
   
   os.makedirs(args.outdir, exist_ok=True)

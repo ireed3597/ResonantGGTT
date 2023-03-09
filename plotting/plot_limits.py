@@ -44,6 +44,7 @@ def getLimits(results_path):
   limits = np.zeros((5, len(masses)))
   limits_no_sys = np.zeros((5, len(masses)))
   limits_no_res_bkg = np.zeros((5, len(masses)))
+  limits_no_dy_bkg = np.zeros((5, len(masses)))
 
   for line in results:
     m = line.split(".")[0].split("_")[-1]
@@ -69,6 +70,8 @@ def getLimits(results_path):
       limits_no_sys[idx2][idx1] = limit
     elif "no_res_bkg" in line:
       limits_no_res_bkg[idx2][idx1] = limit
+    elif "no_dy_bkg" in line:
+      limits_no_dy_bkg[idx2][idx1] = limit
     else:
       limits[idx2][idx1] = limit
 
@@ -94,13 +97,14 @@ def getLimits(results_path):
         limits = np.delete(limits, to_delete, axis=1)
         limits_no_sys = np.delete(limits_no_sys, to_delete, axis=1)
         limits_no_res_bkg = np.delete(limits_no_res_bkg, to_delete, axis=1)
+        limits_no_dy_bkg = np.delete(limits_no_dy_bkg, to_delete, axis=1)
 
     masses[:,1] = masses[:,2] #set my to be mh
   
   #masses = masses[:,:2]
   #print(masses)
 
-  return masses, limits, limits_no_sys, limits_no_res_bkg
+  return masses, limits, limits_no_sys, limits_no_res_bkg, limits_no_dy_bkg
     
 def plotLimits(mX, limits, ylabel, nominal_masses, savename=None, xlabel=r"$m_X$"):
   plt.scatter(mX, limits[2], zorder=3, facecolors="none", edgecolors="blue")
@@ -317,6 +321,29 @@ def plotResBkgComparison2(mx, limits, limits_no_sys, ylabel, nominal_masses, sav
   plt.clf()
   plt.close(f)
 
+def plotDYBkgComparison2(mx, limits, limits_no_sys, ylabel, nominal_masses, savename, xlabel=r"$m_X$"):
+  f, axs = plt.subplots(2, sharex=True, gridspec_kw={'height_ratios': [3, 1]})
+
+  ratio = limits[2]/limits_no_sys[2]
+  
+  axs[0].plot(mx, limits[2], zorder=3, label="Expected 95% CL limit")
+  axs[0].plot(mx, limits_no_sys[2], zorder=3, label="Expected 95% CL limit (no dy bkg)")
+
+  axs[0].set_ylabel(ylabel)
+  axs[0].legend()
+  axs[0].set_yscale("log")
+  
+  axs[1].plot(mx, ratio)
+  axs[1].scatter(mx[np.isin(mx, nominal_masses)], ratio[np.isin(mx, nominal_masses)], zorder=4, facecolors="none", edgecolors="red", label="Nominal masses")
+  axs[1].legend()
+  axs[1].set_ylabel("Ratio")
+  axs[1].set_xlabel(xlabel)
+
+  plt.savefig(savename+".png")
+  plt.savefig(savename+".pdf")
+  plt.clf()
+  plt.close(f)
+
 def tabulateLimits(masses, limits, path):
   df = pd.DataFrame({"MX": masses[:,0], "MY": masses[:,1], "Expected 95% CL Limit [fb]": limits[2]})
   df.sort_values(["MX", "MY"], inplace=True)
@@ -341,7 +368,7 @@ def tabulateLimitsAll(masses, limits, limits_no_sys, limits_no_res_bkg, path):
     f.write(df.to_latex(float_format="%.4f", index=False))
   df.to_csv(os.path.join(path, "limits.csv"), float_format="%.4f")
 
-masses, limits, limits_no_sys, limits_no_res_bkg = getLimits(sys.argv[1])
+masses, limits, limits_no_sys, limits_no_res_bkg, limits_no_dy_bkg = getLimits(sys.argv[1])
 os.makedirs(os.path.join(sys.argv[2], "Limits_xs_br"), exist_ok=True)
 os.makedirs(os.path.join(sys.argv[2], "Limits_xs"), exist_ok=True)
 os.makedirs(os.path.join(sys.argv[2], "Limits_xs_br_no_sys"), exist_ok=True)
@@ -350,6 +377,8 @@ os.makedirs(os.path.join(sys.argv[2], "Limits_xs_br_no_res_bkg"), exist_ok=True)
 os.makedirs(os.path.join(sys.argv[2], "Limits_xs_no_res_bkg"), exist_ok=True)
 os.makedirs(os.path.join(sys.argv[2], "Limits_systematics_comparison"), exist_ok=True)
 os.makedirs(os.path.join(sys.argv[2], "Limits_res_bkg_comparison"), exist_ok=True)
+os.makedirs(os.path.join(sys.argv[2], "Limits_dy_bkg_comparison"), exist_ok=True)
+
 
 tabulateLimits(masses, limits, os.path.join(sys.argv[2], "Limits_xs_br"))
 tabulateLimitsAll(masses, limits, limits_no_sys, limits_no_res_bkg, os.path.join(sys.argv[2], "Limits_xs_br"))
@@ -366,6 +395,8 @@ if len(np.unique(masses[:,1])) == 1: #if 1D (graviton or radion)
   limits = limits[:,np.argsort(mx)]
   limits_no_sys = limits_no_sys[:,np.argsort(mx)]
   limits_no_res_bkg = limits_no_res_bkg[:,np.argsort(mx)]
+  limits_no_dy_bkg = limits_no_dy_bkg[:,np.argsort(mx)]
+
   mx = mx[np.argsort(mx)]
 
   nominal_masses = [260,270,280,290,300,320,350,400,450,500,550,600,650,700,750,800,900,1000]
@@ -387,8 +418,8 @@ if len(np.unique(masses[:,1])) == 1: #if 1D (graviton or radion)
 
 else:
   nominal_mx = [300,400,500,600,700,800,900,1000]
-  #nominal_my = [70,80,90,100,125]
-  nominal_my = [70,80,90,100,125,150,200,250,300,400,500,600,700,800]
+  nominal_my = [70,80,90,100,125]
+  #nominal_my = [70,80,90,100,125,150,200,250,300,400,500,600,700,800]
   #nominal_my = [125,150,200,250,300,400,500,600,700,800]
 
   #only grab the nominal points
@@ -413,10 +444,12 @@ else:
     limits_slice = limits[:,masses[:,0]==mx]
     limits_no_sys_slice = limits_no_sys[:,masses[:,0]==mx]
     limits_no_res_bkg_slice = limits_no_res_bkg[:,masses[:,0]==mx]
+    limits_no_dy_bkg_slice = limits_no_dy_bkg[:,masses[:,0]==mx]
 
     limits_slice = limits_slice[:,np.argsort(my)]
     limits_no_sys_slice = limits_no_sys_slice[:,np.argsort(my)]
     limits_no_res_bkg_slice = limits_no_res_bkg_slice[:,np.argsort(my)]
+    limits_no_dy_bkg_slice = limits_no_dy_bkg_slice[:,np.argsort(my)]
     my = my[np.argsort(my)]
 
     if mx in nominal_mx:
@@ -434,16 +467,20 @@ else:
     plotSystematicComparison(my, limits_slice, limits_no_sys_slice, nm, os.path.join(sys.argv[2], "Limits_systematics_comparison", "mx%d"%mx), xlabel=r"$m_Y$")
     plotSystematicComparison2(my, limits_slice, limits_no_sys_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_systematics_comparison", "mx%d_2"%mx), xlabel=r"$m_Y$")
     plotResBkgComparison2(my, limits_slice, limits_no_res_bkg_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_res_bkg_comparison", "mx%d_2"%mx), xlabel=r"$m_Y$")
+    plotDYBkgComparison2(my, limits_slice, limits_no_dy_bkg_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_dy_bkg_comparison", "mx%d_2"%mx), xlabel=r"$m_Y$")
 
   for my in np.unique(masses[:,1]):
     mx = masses[masses[:,1]==my,0]
     limits_slice = limits[:,masses[:,1]==my]
     limits_no_sys_slice = limits_no_sys[:,masses[:,1]==my]
     limits_no_res_bkg_slice = limits_no_res_bkg[:,masses[:,1]==my]
+    limits_no_dy_bkg_slice = limits_no_dy_bkg[:,masses[:,1]==my]
+
 
     limits_slice = limits_slice[:,np.argsort(mx)]
     limits_no_sys_slice = limits_no_sys_slice[:,np.argsort(mx)]
     limits_no_res_bkg_slice = limits_no_res_bkg_slice[:,np.argsort(mx)]
+    limits_no_dy_bkg_slice = limits_no_dy_bkg_slice[:,np.argsort(mx)]
     mx = mx[np.argsort(mx)]
 
     if my in nominal_my:
@@ -458,7 +495,6 @@ else:
     plotSystematicComparison(mx, limits_slice, limits_no_sys_slice, nm, os.path.join(sys.argv[2], "Limits_systematics_comparison", "my%d"%my))
     plotSystematicComparison2(mx, limits_slice, limits_no_sys_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_systematics_comparison", "my%d_2"%my))
     plotResBkgComparison2(mx, limits_slice, limits_no_res_bkg_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_res_bkg_comparison", "my%d_2"%my))
-
-  
+    plotDYBkgComparison2(mx, limits_slice, limits_no_dy_bkg_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_dy_bkg_comparison", "my%d_2"%my))
 
   
