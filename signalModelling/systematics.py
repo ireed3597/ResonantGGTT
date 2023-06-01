@@ -8,6 +8,7 @@ import os
 import json
 import common
 import sys
+import copy
 
 import tracemalloc
 
@@ -245,23 +246,19 @@ def deriveParquetShapeSystematics(dfs, systematic, mass):
 
   return consts
 
-def deriveSystematics(dfs, original_outdir):
+def deriveSystematics(dfs, masses, original_outdir):
   yield_systematics = getYieldSystematicsNames(dfs["nominal"])
-  #parquet_yield_systematics = ["JER", "JES", "MET_JER", "MET_JES", "MET_Unclustered", "Muon_pt", "Tau_pt"]
   parquet_yield_systematics = ["JER", "JES", "MET_JES", "MET_Unclustered", "Muon_pt", "Tau_pt"]
   parquet_shape_systematics = ["fnuf", "material", "scale", "smear"]
-  #parquet_yield_systematics = ["JER"]
-  #parquet_shape_systematics = ["fnuf"]
   
   systematics = {}
   with open(os.path.join(original_outdir, "model.json"), "r") as f:
     sig_model = json.load(f)
 
   for year in sig_model.keys():
-  #for year in ["2016"]:
     systematics[year] = {}
     for SR in sig_model[year].keys():
-    #for SR in ["1", "2"]:
+      #if SR != "0": continue
       print(year, SR)
       systematics[year][SR] = {}
 
@@ -271,6 +268,9 @@ def deriveSystematics(dfs, original_outdir):
         year_SR_dfs[key] = df[(df.year==int(year))&(df.SR==int(SR))]
 
       for mass in sig_model[year][SR].keys():
+        if (float(mass.split("_")[0]), float(mass.split("_")[1])) not in masses:
+          continue
+
         print(mass)
         #check if systematics already calculated
         closest_mass = sig_model[year][SR][mass]["this mass"]["closest_mass"]
@@ -292,8 +292,9 @@ def deriveSystematics(dfs, original_outdir):
 
   with open(os.path.join(original_outdir, "systematics.json"), "w") as f:
     json.dump(systematics, f, indent=4, sort_keys=True)
+  print("Forcing flush", flush=True)
 
-def addMigrationSystematics(outdir):
+def addMigrationSystematics(outdir, masses):
   with open(os.path.join(outdir, "model.json"), "r") as f:
     sig_model = json.load(f)
   with open(os.path.join(outdir, "systematics.json"), "r") as f:
@@ -301,29 +302,33 @@ def addMigrationSystematics(outdir):
 
   years = sorted(list(sig_model.keys()))
   SRs = sorted(list(sig_model[years[0]].keys()))
-  masses = sorted(list(sig_model[years[0]][SRs[0]].keys()))
 
   print(years)
   print(SRs)
 
   for year in years:
     for SR in SRs[:-1]:
-      masses = sig_model[year][SR].keys()
       SRp1 = str(int(SR)+1)
       sys_name = "Interpolation_migration_%s_%s"%(SR, SRp1)
 
-      for m in masses:
-        yield1 = sig_model[year][SR][m]["this mass"]["norm"]
-        yield2 = sig_model[year][SRp1][m]["this mass"]["norm"]
+      print(masses)
+      for mass in sig_model[year][SR].keys():
+        print(mass)
+        if (float(mass.split("_")[0]), float(mass.split("_")[1])) not in masses:
+          print("continuing")
+          continue
+
+        yield1 = sig_model[year][SR][mass]["this mass"]["norm"]
+        yield2 = sig_model[year][SRp1][mass]["this mass"]["norm"]
 
         if (yield1 == 0) or (yield2 == 0):
           up1 = up2 = down1 = down2 = 1.0
         else:
-          interpolation_uncert1 = systematics[year][SR][m]["interpolation"]
-          interpolation_uncert2 = systematics[year][SRp1][m]["interpolation"]
+          interpolation_uncert1 = systematics[year][SR][mass]["interpolation"]
+          interpolation_uncert2 = systematics[year][SRp1][mass]["interpolation"]
 
           if interpolation_uncert1 >= 1.5 or interpolation_uncert2 >= 1.5:
-            print(year, SR, m, interpolation_uncert1, interpolation_uncert2)
+            print(year, SR, mass, interpolation_uncert1, interpolation_uncert2)
 
           up1 = 1 + ((interpolation_uncert2-1)*yield2) / yield1
           down1 = 1 - (interpolation_uncert1 - 1)
@@ -335,23 +340,21 @@ def addMigrationSystematics(outdir):
 
         for j in SRs:
           if j == SR:
-            systematics[year][j][m][sys_name+"_left"] = up1
-            systematics[year][j][m][sys_name+"_right"] = down1
+            systematics[year][j][mass][sys_name+"_left"] = up1
+            systematics[year][j][mass][sys_name+"_right"] = down1
           elif j == SRp1:
-            systematics[year][j][m][sys_name+"_left"] = down2
-            systematics[year][j][m][sys_name+"_right"] = up2
+            systematics[year][j][mass][sys_name+"_left"] = down2
+            systematics[year][j][mass][sys_name+"_right"] = up2
           else:
-            systematics[year][j][m][sys_name+"_left"] = 1.0
-            systematics[year][j][m][sys_name+"_right"] = 1.0
+            systematics[year][j][mass][sys_name+"_left"] = 1.0
+            systematics[year][j][mass][sys_name+"_right"] = 1.0
 
   with open(os.path.join(outdir, "systematics.json"), "w") as f:
     json.dump(systematics, f, indent=4, sort_keys=True)
+  print("Forcing flush", flush=True)
 
-def tagSignals(df, optim_dir, proc_dict):
+def tagSignals(df, optim_results, proc_dict):
   df["SR"] = -1
-
-  with open(os.path.join(optim_dir, "optim_results.json"), "r") as f:
-    optim_results = json.load(f)
 
   for proc in proc_dict.keys():
     if proc_dict[proc] in np.unique(df.process_id):
@@ -368,37 +371,55 @@ def tagSignals(df, optim_dir, proc_dict):
 
   return df[df.SR!=-1]
 
-def loadDataFrame(path, proc_dict, optim_dir, columns=None, sample_fraction=1.0):
+def loadDataFrame(path, proc_dict, masses, optim_results, columns=None, sample_fraction=1.0):
   df = pd.read_parquet(path, columns=columns)
-  df = df[df.y==1]
-  #df = df[df.process_id==proc_dict["NMSSM_XYH_Y_tautau_H_gg_MX_1000_MY_600"]]
+  example_sig_proc = optim_results[0]["sig_proc"]
+
+  keep_proc_ids = []
+  for MX, MY in masses:
+    sig_proc = common.get_sig_proc(example_sig_proc, MX, MY)
+    if sig_proc in proc_dict.keys():
+      keep_proc_ids.append(proc_dict[sig_proc])
+    else:
+      print("WARNING: %s is not in proc_dict (normal if %s is a intermediate mass point)"%(sig_proc, sig_proc))
+
+  df = df[df.process_id.isin(keep_proc_ids)]
+
   if sample_fraction != 1.0 :
     df = df.sample(frac=sample_fraction)  
 
   common.add_MX_MY(df, proc_dict)
-  tagSignals(df, optim_dir, proc_dict)
-  df = df[filter(lambda x: "score" not in x, df.columns)]
+  tagSignals(df, optim_results, proc_dict)
   return df
 
-def getColumns(path):
+def filterScores(score, masses):
+  if "intermediate" in score:
+    sig_proc = "_".join(score.split("_")[3:])
+    return common.get_MX_MY(sig_proc) in masses
+  else:
+    return True      
+
+def getColumns(path, masses):
   columns = common.getColumns(path)
-  columns = list(filter(lambda x: x[:5] != "score", columns))
   columns = list(filter(lambda x: ("intermediate_transformed_score" in x), columns)) + ["Diphoton_mass", "process_id", "weight", "y", "year"]
+  if masses is not None:
+    columns = list(filter(lambda x: filterScores(x, masses), columns))
   return columns
 
-def loadDataFrames(args):
+def loadDataFrames(args, masses, optim_results):
   with open(args.summary_input) as f:
     proc_dict = json.load(f)['sample_id_map']
   
-  dfs = {}
+  dfs = {}  
   
   tracemalloc.start()
   for path in os.listdir(args.parquet_input):
-    if (".parquet" in path) and ("nominal" not in path):
+    if ("merged" in path) and (".parquet" in path) and ("nominal" not in path):
       print(path, np.array(tracemalloc.get_traced_memory())/(1024*1024*1024))
       full_path = os.path.join(args.parquet_input, path)
+      columns = getColumns(full_path, masses)
 
-      df = loadDataFrame(full_path, proc_dict, args.optim_dir, columns=getColumns(full_path), sample_fraction=args.dataset_fraction)
+      df = loadDataFrame(full_path, proc_dict, masses, optim_results, columns, sample_fraction=args.dataset_fraction)
       name = "_".join(path.split(".parquet")[0].split("_")[1:])
       dfs[name] = df
   tracemalloc.stop()
@@ -406,28 +427,82 @@ def loadDataFrames(args):
   #load nominal dataframe
   nominal_path = os.path.join(args.parquet_input, "merged_nominal.parquet")
 
-  columns = getColumns(full_path) #columns from last systematic file
+  columns = getColumns(full_path, masses) #columns from last systematic file
   columns.remove("weight")
   columns += list(filter(lambda x: "weight" in x, common.getColumns(nominal_path))) #add weight systematics
 
-  df = loadDataFrame(nominal_path, proc_dict, args.optim_dir, columns=columns, sample_fraction=args.dataset_fraction) #get columns from last systematic file
+  df = loadDataFrame(nominal_path, proc_dict, masses, optim_results, columns, sample_fraction=args.dataset_fraction) #get columns from last systematic file
   dfs["nominal"] = df
   
-  #print(dfs)
   return dfs
 
+def mergeBatchSplit(outdir, mass_points):
+  expected_dirs = [mass.replace(",","_") for mass in mass_points]
+  missing_mass_points = set(expected_dirs).difference(os.listdir(os.path.join(outdir, "batch_split")))
+  assert len(missing_mass_points) == 0, print("Some jobs must have failed, these mass points are missing: %s"%str(missing_mass_points))
+
+  merged_systematics = None
+  for mass in mass_points:
+    mass = mass.replace(",", "_")
+
+    with open(os.path.join(outdir, "batch_split", mass, "systematics.json"), "r") as f:
+      systematics = json.load(f)
+    if merged_systematics is None:
+      merged_systematics = systematics
+    else:
+      assert merged_systematics.keys() == systematics.keys()
+      for year in merged_systematics.keys():
+        assert merged_systematics[year].keys() == systematics[year].keys()
+        os.makedirs(os.path.join(outdir, year), exist_ok=True)
+        for cat in merged_systematics[year]:
+          os.makedirs(os.path.join(outdir, year, cat, mass), exist_ok=True)
+
+          merged_systematics[year][cat][mass] = systematics[year][cat][mass]
+      
+  with open(os.path.join(outdir, "systematics.json"), "w") as f:
+    json.dump(merged_systematics, f, indent=4, sort_keys=True, cls=common.NumpyEncoder)
+
 def main(args):
-  if args.batch:
-    common.submitToBatch([sys.argv[0]] + common.parserToList(args), extra_memory=args.batch_slots)
+  with open(os.path.join(args.optim_dir, "optim_results.json")) as f:
+    optim_results = json.load(f)
+
+  if args.mass_points is None:
+    all_masses = common.getAllMasses(optim_results)
+    args.mass_points = ["%d,%d"%(m[0], m[1]) for m in all_masses]
+  
+  if args.merge_batch_split:
+    mergeBatchSplit(args.outdir, args.mass_points)
     return True
 
-  dfs = loadDataFrames(args)
-
-  nominal_masses = np.sort(np.unique(dfs["nominal"].MX))
-  #masses = np.arange(nominal_masses[0], nominal_masses[-1]+args.step, args.step, dtype=int)
+  if args.batch:
+    if not args.batch_split:
+      common.submitToBatch([sys.argv[0]] + common.parserToList(args), extra_memory=args.batch_slots)
+      return True
+    else:
+      mass_points_copy = args.mass_points.copy()
+      outdir_copy = copy.copy(args.outdir)
+      for mass in mass_points_copy:
+        if mass not in ["300,141","311,150","312,141","400,237","412,250"]: continue
+        args.mass_points = [mass]
+        args.outdir = os.path.join(outdir_copy, "batch_split", mass.replace(",","_"))
+        common.submitToBatch([sys.argv[0]] + common.parserToList(args), extra_memory=args.batch_slots)
+      return True
   
-  deriveSystematics(dfs, args.outdir)
-  addMigrationSystematics(args.outdir)
+  if args.mass_points is not None:
+    with open(os.path.join(args.outdir, "model.json"), "r") as f:
+      model = json.load(f)
+    for mass in args.mass_points.copy():
+      closest_mass = model[list(model.keys())[0]]["0"][mass.replace(",", "_")]["this mass"]["closest_mass"]
+      args.mass_points.append(closest_mass.replace("_", ","))
+    args.mass_points = list(set(args.mass_points))
+    print(args.mass_points)
+
+  masses, optim_results = common.getMassesToRun(args.mass_points, optim_results)
+
+  dfs = loadDataFrames(args, masses, optim_results)
+
+  deriveSystematics(dfs, masses, args.outdir)
+  addMigrationSystematics(args.outdir, masses)
 
 if __name__=="__main__":
   parser = argparse.ArgumentParser()
@@ -438,7 +513,10 @@ if __name__=="__main__":
   parser.add_argument('--step', type=float, default=10.0)
   parser.add_argument('--batch', action="store_true")
   parser.add_argument('--batch-slots', type=int, default=2)
+  parser.add_argument('--batch-split', action="store_true")
+  parser.add_argument('--merge-batch-split', action="store_true")
   parser.add_argument('--Y-gg', action="store_true")
+  parser.add_argument('--mass-points', nargs="+", default=None, help="Only run for these mass points. Provide a list of MX,MY like 300,125 400,150...")
 
   parser.add_argument('--dataset-fraction', type=float, default=1.0)
   args = parser.parse_args()

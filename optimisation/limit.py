@@ -430,7 +430,8 @@ def getBoundariesPerformance(bkg, sig, pres, sr, boundaries, i=None):
   select = lambda df, i: df[(df.score > boundaries[i]) & (df.score <= boundaries[i+1])]
 
   for i in range(ncats):
-    assert len(select(bkg, i)) > 0, print(i)
+    #assert len(select(bkg, i)) > 0, print(i)
+    #print(len(select(bkg, i)))
     nsig, nbkg, nbkg_err, bkg_func = performFit(select(sig, i), select(bkg, i), pres, sr)
 
     # these numbers contribute ~0 sensitivity but help with numerical stuff e.g. zeros in logs

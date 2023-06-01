@@ -15,13 +15,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import mplhep
 mplhep.set_style("CMS")
-plt.rcParams["figure.figsize"] = (12.5,10)
+#plt.rcParams["figure.figsize"] = (12.5,3)
 #plt.rcParams['figure.constrained_layout.use'] = True
 
 def loadDataFrame(args, scores):
   columns = common.getColumns(args.parquet_input)
   columns_load = ["Diphoton_mass", "weight", "year", "process_id"]
   columns_load += scores
+  columns_load = list(set(columns).intersection(columns_load))
 
   df = pd.read_parquet(args.parquet_input, columns=columns_load)
   with open(args.summary_input) as f:
@@ -30,13 +31,11 @@ def loadDataFrame(args, scores):
   data = df[df.process_id == proc_dict["Data"]]
   sigs = {sig_proc: df[df.process_id == proc_dict[sig_proc]] for sig_proc in args.sig_procs}
 
-  bkg_ids = [proc_dict[proc] for proc in common.bkg_procs["all"] if proc in proc_dict.keys()]
-  bkg = df[df.process_id.isin(bkg_ids)]
-
   if args.bkg_source == "data":
     bkg = data
   elif args.bkg_source == "MC":
-    pass
+    bkg_ids = [proc_dict[proc] for proc in common.bkg_procs["all"] if proc in proc_dict.keys()]
+    bkg = df[df.process_id.isin(bkg_ids)]
   else:
     raise AttributeError("Background source must be 'data' or 'MC'")
   
@@ -94,6 +93,10 @@ def getPoints(f, grad, m1, m2):
   return points
 
 def main(args):
+  if args.batch:
+    common.submitToBatch([sys.argv[0]] + common.parserToList(args), extra_memory=args.batch_slots)
+    return True
+
   with open(args.optim_results, "r") as f:
     optim_results = json.load(f)
   optim_results_dict = {each["sig_proc"]:each for each in optim_results}
@@ -124,7 +127,8 @@ def main(args):
       limits = np.array([getLimit(sigs, bkg, optim_results_dict, [mx, my], [plot_mx, my]) for plot_mx in to_plot_mx])
 
       rel_change = limits/limits[0] - 1
-      plt.scatter(to_plot_mx, rel_change)
+      #plt.scatter(to_plot_mx, rel_change)
+      plt.plot(np.sort(to_plot_mx), rel_change[np.argsort(to_plot_mx)], marker="o")
       plt.xlabel(r"$m_X$ that categories target")
       plt.ylabel("Relative change in limit")
       plt.title(r"MC for $m_X=%d, m_Y=%d$"%(mx, my))
@@ -200,7 +204,8 @@ def main(args):
 
   plt.scatter([m[0] for m in all_masses], [m[1] for m in all_masses], marker='.', label="All masses (N=%d)"%len(all_masses))
   plt.scatter([m[0] for m in nominal_masses], [m[1] for m in nominal_masses], marker='.', label="Nominal masses (N=%d)"%len(nominal_masses))
-  plt.legend()
+  plt.ylim(top=(plt.ylim()[0] + 1.2*(plt.ylim()[1] - plt.ylim()[0])))
+  plt.legend(ncol=1)
   plt.xlabel(r"$m_X$")
   plt.ylabel(r"$m_Y$")
   plt.savefig(os.path.join(args.outdir, "final_granularity_%s.pdf"%str(args.max_loss).replace(".","p")))
@@ -236,7 +241,8 @@ def main(args):
 
   plt.scatter([m[0] for m in all_masses], [m[1] for m in all_masses], marker='.', label="All masses (N=%d)"%len(all_masses))
   plt.scatter([m[0] for m in nominal_masses], [m[1] for m in nominal_masses], marker='.', label="Nominal masses (N=%d)"%len(nominal_masses))
-  plt.legend()
+  plt.ylim(top=(plt.ylim()[0] + 1.2*(plt.ylim()[1] - plt.ylim()[0])))
+  plt.legend(ncol=1)
   plt.xlabel(r"$m_X$")
   plt.ylabel(r"$m_Y$")
   plt.savefig(os.path.join(args.outdir, "final_granularity_%s_filled.pdf"%str(args.max_loss).replace(".","p")))
@@ -263,8 +269,10 @@ if __name__=="__main__":
 
   parser.add_argument('--optim-results', '-r', type=str, required=True)
 
-  parser.add_argument('--NMSSM', action="store_true")
   parser.add_argument('--max-loss', type=float, default=0.1)
+  parser.add_argument('--batch', action="store_true")
+  parser.add_argument('--batch-slots', type=int, default=1)
+
 
   args = parser.parse_args()
 

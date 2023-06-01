@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import argparse
+import common
 
 def getFWHM(bins, hist):
   bc = (bins[:-1]+bins[1:])/2  
@@ -30,11 +31,20 @@ parser.add_argument('--selection', '-s', type=str, nargs="+", default=None)
 parser.add_argument('--log', action="store_true")
 
 args = parser.parse_args()
-df = pd.read_parquet(args.parquet_input)
 
-if args.column not in df.columns:
-  print("\n".join(df.columns))
+all_columns = common.getColumns(args.parquet_input)
+
+if args.column not in all_columns:
+  print("\n".join(all_columns))
   raise Exception(f"{args.column} does not exist in the dataframe")
+
+read_columns = [args.column, args.weight_column]
+if args.selection is not None:
+  for col in all_columns:
+    if str(col) in str(args.selection):
+      read_columns.append(col)
+    
+df = pd.read_parquet(args.parquet_input, columns=read_columns)
 
 if args.selection != None:
   selection = "&".join(["(df.%s)"%condition for condition in args.selection])
@@ -47,9 +57,12 @@ s = (var>=args.range[0])&(var<=args.range[1])
 var = var[s]
 w = df[args.weight_column][s]
 
+del df
+
 hist, bin_edges = np.histogram(var, bins=args.nbins, range=args.range, weights=w)
 
-details = "Mean = %.2f\nStd = %.2f\nFWHM = %.2f"%(var.mean(), var.std(), getFWHM(bin_edges, hist))
+#details = "Mean = %.2f\nStd = %.2f\nFWHM = %.2f"%(var.mean(), var.std(), getFWHM(bin_edges, hist))
+details = " "
 
 plt.hist(bin_edges[:-1], bin_edges, weights=hist, label=details)
 plt.legend()

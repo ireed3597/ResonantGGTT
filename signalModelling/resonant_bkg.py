@@ -76,18 +76,13 @@ def deriveModels(dfs, proc_dict, optim_results, original_outdir, make_plots=Fals
   if systematics:
     systematics = {str(year):{str(SR):{} for SR in range(nSR)} for year in np.unique(dfs["nominal"].year)}
     yield_systematics = syst.getYieldSystematicsNames(dfs["nominal"])
-    #parquet_yield_systematics = ["JER", "JES", "MET_JER", "MET_JES", "MET_Unclustered", "Muon_pt", "Tau_pt"]
     parquet_yield_systematics = ["JER", "JES", "MET_JES", "MET_Unclustered", "Muon_pt", "Tau_pt"]
     parquet_shape_systematics = ["fnuf", "material", "scale", "smear"]
-    #parquet_yield_systematics = ["JER"]
-    #parquet_shape_systematics = ["fnuf"]
 
   for year in dfs["nominal"].year.unique():
-  #for year in [2016]:
     print(year)
     for entry in optim_results:
       MX, MY = common.get_MX_MY(entry["sig_proc"])
-      #if MY != 90: continue
       mass = "%d_%d"%(MX, MY)
       print(mass)
       for key,df in dfs.items():
@@ -99,7 +94,6 @@ def deriveModels(dfs, proc_dict, optim_results, original_outdir, make_plots=Fals
         dfs_tagged[key] = tagSignals(dfs[key][dfs[key].year==year], entry)
       
       for SR in dfs_tagged["nominal"].SR.unique():
-      #for SR in [0, 5]:
         outdir = os.path.join(original_outdir, str(year), str(SR), "%d_%d"%(MX,MY))
         
         dfs_SR = {}
@@ -107,7 +101,8 @@ def deriveModels(dfs, proc_dict, optim_results, original_outdir, make_plots=Fals
           dfs_SR[key] = dfs_tagged[key][dfs_tagged[key].SR==SR]
 
         models[str(year)][str(SR)][mass] = {}
-        if systematics: systematics[str(year)][str(SR)][mass] = {}
+        if systematics: 
+          systematics[str(year)][str(SR)][mass] = {}
         
         for proc in common.bkg_procs["SM Higgs"]:
           dfs_proc = {}
@@ -116,12 +111,12 @@ def deriveModels(dfs, proc_dict, optim_results, original_outdir, make_plots=Fals
           
           df_proc = dfs_proc["nominal"]
 
-          if (df_proc.weight.sum() > 0.1): #if resonant bkg contribute enough            
-            if (len(df_proc) > 1000) & (df_proc.weight.sum() > 0.1):
+          print(df_proc.weight.sum())
+          if (df_proc.weight.sum() > 0.01): #if resonant bkg contribute enough            
+            if (len(df_proc) > 1000) & (df_proc.weight.sum() > 0.01):
               popt, perr = fitSignalModel(df_proc, outdir, savename=proc, make_plots=make_plots)
               
               if systematics:
-                #only do systematics if nominal mass
                 if len(dfs_SR["%s_up"%parquet_yield_systematics[0]]) > 0:                  
                   systematics[str(year)][str(SR)][mass][proc] = {}
                   for systematic in yield_systematics:
@@ -203,8 +198,6 @@ def deriveModels(dfs, proc_dict, optim_results, original_outdir, make_plots=Fals
                   break
               assert type(systematics[str(year)][str(SR)][mass][proc]) is dict
 
-        
-
   #at this stage we have
 
   with open(os.path.join(original_outdir, "model.json"), "w") as f:
@@ -213,50 +206,110 @@ def deriveModels(dfs, proc_dict, optim_results, original_outdir, make_plots=Fals
     json.dump(systematics, f, indent=4, sort_keys=True, cls=common.NumpyEncoder)
 
 
-def loadDataFrame(path, proc_dict, columns=None, sample_fraction=1.0):
+def loadDataFrame(path, proc_dict, columns=None, sample_fraction=1.0, score_columns=None):
   if columns is None:
     columns = common.getColumns(path)
     columns = list(filter(lambda x: x[:5] != "score", columns))
+  
+  if score_columns is not None:
+    new_columns = []
+    for column in columns:
+      if ("score" not in column) or (column in score_columns):
+        new_columns.append(column)
+    columns = new_columns
+
   df = pd.read_parquet(path, columns=columns)
   if sample_fraction != 1.0 :df = df.sample(frac=sample_fraction)
   df = df[df.process_id.isin([proc_dict[proc] for proc in common.bkg_procs["SM Higgs"]])]
-
   return df
 
-def loadDataFrames(args, proc_dict):
+def loadDataFrames(args, proc_dict, score_columns=None):
   dfs = {}
   
   #load nominal dataframe
-  df = loadDataFrame(os.path.join(args.parquet_input, "merged_nominal.parquet"), proc_dict, sample_fraction=args.dataset_fraction)
+  df = loadDataFrame(os.path.join(args.parquet_input, "merged_nominal.parquet"), proc_dict, sample_fraction=args.dataset_fraction, score_columns=score_columns)
   #systematic_columns = list(filter(lambda x: ("intermediate_transformed_score" in x), df.columns)) + ["Diphoton_mass", "process_id", "weight", "y", "year"]
   dfs["nominal"] = df
 
   if args.systematics:
     for path in os.listdir(args.parquet_input):
-      if (".parquet" in path) and ("nominal" not in path):
+      if ("merged" in path) and (".parquet" in path) and ("nominal" not in path):
       #if "fnuf" in path or "merged_JER" in path:
         print(path)
         #df = loadDataFrame(os.path.join(args.parquet_input, path), proc_dict, columns=systematic_columns)
-        df = loadDataFrame(os.path.join(args.parquet_input, path), proc_dict, sample_fraction=args.dataset_fraction)
+        df = loadDataFrame(os.path.join(args.parquet_input, path), proc_dict, sample_fraction=args.dataset_fraction, score_columns=score_columns)
         name = "_".join(path.split(".parquet")[0].split("_")[1:])
         dfs[name] = df
 
   return dfs
 
-def main(args):
-  if args.batch:
-    common.submitToBatch([sys.argv[0]] + common.parserToList(args), extra_memory=args.batch_slots)
-    return True
+def mergeBatchSplit(outdir, mass_points):
+  expected_dirs = [mass.replace(",","_") for mass in mass_points]
+  missing_mass_points = set(expected_dirs).difference(os.listdir(os.path.join(outdir, "batch_split")))
+  assert len(missing_mass_points) == 0, print("Some jobs must have failed, these mass points are missing: %s"%str(missing_mass_points))
 
+  merged_model = None
+  merged_systematics = None
+  for mass in mass_points:
+    mass = mass.replace(",", "_")
+
+    with open(os.path.join(outdir, "batch_split", mass, "model.json"), "r") as f:
+      model = json.load(f)
+    with open(os.path.join(outdir, "batch_split", mass, "systematics.json"), "r") as f:
+      systematics = json.load(f)
+    if merged_model is None:
+      merged_model = model
+      merged_systematics = systematics
+    else:
+      assert merged_model.keys() == model.keys()
+      for year in merged_model.keys():
+        assert merged_model[year].keys() == model[year].keys()
+        os.makedirs(os.path.join(outdir, year), exist_ok=True)
+        for cat in merged_model[year]:
+          os.makedirs(os.path.join(outdir, year, cat, mass), exist_ok=True)
+          os.system("cp %s/* %s"%(os.path.join(outdir, "batch_split", mass, year, cat, mass), os.path.join(outdir, year, cat, mass)))
+
+          merged_model[year][cat][mass] = model[year][cat][mass]
+          merged_systematics[year][cat][mass] = systematics[year][cat][mass]
+      
+  with open(os.path.join(outdir, "model.json"), "w") as f:
+    json.dump(merged_model, f, indent=4, sort_keys=True, cls=common.NumpyEncoder)
+  with open(os.path.join(outdir, "systematics.json"), "w") as f:
+    json.dump(merged_systematics, f, indent=4, sort_keys=True, cls=common.NumpyEncoder)
+
+def main(args):
   with open(args.summary_input) as f:
     proc_dict = json.load(f)['sample_id_map']
   with open(args.optim_results) as f:
      optim_results = json.load(f)
 
+  if args.mass_points is None:
+    all_masses = common.getAllMasses(optim_results)
+    args.mass_points = ["%d,%d"%(m[0], m[1]) for m in all_masses]
+
+  if args.merge_batch_split:
+    mergeBatchSplit(args.outdir, args.mass_points)
+    return True
+
+  if args.batch:
+    if not args.batch_split:
+      common.submitToBatch([sys.argv[0]] + common.parserToList(args), extra_memory=args.batch_slots)
+      return True
+    else:
+      mass_points_copy = args.mass_points.copy()
+      outdir_copy = copy.copy(args.outdir)
+      for mass in mass_points_copy:
+        args.mass_points = [mass]
+        args.outdir = os.path.join(outdir_copy, "batch_split", mass.replace(",","_"))
+        common.submitToBatch([sys.argv[0]] + common.parserToList(args), extra_memory=args.batch_slots)
+      return True    
+  
   if args.mass_points is not None:
     optim_results = common.filterOptimResults(optim_results, args.mass_points)
 
-  dfs = loadDataFrames(args, proc_dict)
+  scores = [result["score"] for result in optim_results]
+
+  dfs = loadDataFrames(args, proc_dict, scores)
 
   deriveModels(dfs, proc_dict, optim_results, args.outdir, make_plots=args.make_plots, systematics=args.systematics)  
 
@@ -269,6 +322,8 @@ if __name__=="__main__":
   parser.add_argument('--outdir', '-o', type=str, required=True)
   parser.add_argument('--batch', action="store_true")
   parser.add_argument('--batch-slots', type=int, default=2)
+  parser.add_argument('--batch-split', action="store_true")
+  parser.add_argument('--merge-batch-split', action="store_true")
   parser.add_argument('--make-plots', action="store_true")
   parser.add_argument('--systematics', action="store_true")
   parser.add_argument('--dataset-fraction', type=float, default=1.0)

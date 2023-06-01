@@ -33,11 +33,11 @@ def getLimits(results_path):
 
   masses = []
   for line in results:
-    m = line.split(".")[0].split("_")[-1]
-    mx = int(m.split("mx")[1].split("my")[0])
-    my = int(m.split("my")[1].split("mh")[0])
-    if "mh" in m: mh = int(m.split("mh")[1])
-    else:         mh = 125
+    m = line.split(".txt")[0].split("_")[-1]
+    mx = float(m.split("mx")[1].split("my")[0])
+    my = float(m.split("my")[1].split("mh")[0])
+    if "mh" in m: mh = float(m.split("mh")[1])
+    else:         mh = 125.0
     if [mx, my, mh] not in masses:
       masses.append([mx, my, mh])
 
@@ -47,11 +47,11 @@ def getLimits(results_path):
   limits_no_dy_bkg = np.zeros((5, len(masses)))
 
   for line in results:
-    m = line.split(".")[0].split("_")[-1]
-    mx = int(m.split("mx")[1].split("my")[0])
-    my = int(m.split("my")[1].split("mh")[0])
-    if "mh" in m: mh = int(m.split("mh")[1])
-    else:         mh = 125
+    m = line.split(".txt")[0].split("_")[-1]
+    mx = float(m.split("mx")[1].split("my")[0])
+    my = float(m.split("my")[1].split("mh")[0])
+    if "mh" in m: mh = float(m.split("mh")[1])
+    else:         mh = 125.0
     idx1 = masses.index([mx, my, mh])
     if "2.5%" in line:
       idx2=0
@@ -134,30 +134,39 @@ def plotLimitsStackMX(masses, limits, ylabel, nominal_mx, nominal_my, savename):
   label3 = r"$\pm$ $1\sigma$"
   label4 = r"$\pm$ $2\sigma$"
 
+  j = -1
   for i, mx in enumerate(np.sort(np.unique(masses[:,0]))):
+    if mx not in nominal_mx:
+      continue
+    j += 1
+
     my = masses[masses[:,0]==mx,1]
     limits_slice = limits[:,masses[:,0]==mx]
     
     limits_slice = limits_slice[:,np.argsort(my)]
     my = my[np.argsort(my)]
 
-    limits_slice *= 10**i
+    limits_slice *= int(10**j)
 
     plt.scatter(my, limits_slice[2], zorder=3, facecolors="none", edgecolors="blue")
     if mx in nominal_mx:
       plt.scatter(my[np.isin(my, nominal_my)], limits_slice[2][np.isin(my, nominal_my)], zorder=4, facecolors="none", edgecolors="red", label=label1)
     plt.plot(my, limits_slice[2], 'b--', zorder=3, label=label2)
-    plt.fill_between(my, limits_slice[1], limits_slice[3], zorder=2, facecolor="green", label=label3)
-    plt.fill_between(my, limits_slice[0], limits_slice[4], zorder=1, facecolor="yellow", label=label4)
+    if len(my) > 1:
+      plt.fill_between(my, limits_slice[1], limits_slice[3], zorder=2, facecolor="green", label=label3)
+      plt.fill_between(my, limits_slice[0], limits_slice[4], zorder=1, facecolor="yellow", label=label4)
+    else:
+      plt.fill_between([my[0]-10]+list(my), list(limits_slice[1])*2, list(limits_slice[3])*2, zorder=2, facecolor="green", label=label3)
+      plt.fill_between([my[0]-10]+list(my), list(limits_slice[0])*2, list(limits_slice[4])*2, zorder=1, facecolor="yellow", label=label4)
     label1 = label2 = label3 = label4 = None
 
-    plt.text(my[-1]+10, limits_slice[2][-1], r"$m_X=%d$ GeV $(\times 10^%d)$"%(mx, i), fontsize=12, verticalalignment="center")
+    plt.text(my[-1]+10, limits_slice[2][-1], r"$m_X=%d$ GeV $(\times 10^{%d})$"%(mx, i), fontsize=12, verticalalignment="center")
 
   plt.xlabel(r"$m_Y$")
   plt.ylabel(ylabel)  
   plt.legend(ncol=2)
   bottom, top = plt.ylim()
-  plt.ylim(limits.min(), limits.max()*10**(i+1))
+  plt.ylim(limits.min(), limits.max()*10**(j+1))
   left, right = plt.xlim()
   plt.xlim(left, my.max()*1.2)
     
@@ -177,30 +186,41 @@ def plotLimitsStackMY(masses, limits, ylabel, nominal_mx, nominal_my, savename):
   label3 = r"$\pm$ $1\sigma$"
   label4 = r"$\pm$ $2\sigma$"
 
+  j = -1
   for i, my in enumerate(nominal_my):
+    if my not in nominal_my:
+      continue
+    j += 1
+
     mx = masses[masses[:,1]==my,0]
     limits_slice = limits[:,masses[:,1]==my]
     
     limits_slice = limits_slice[:,np.argsort(mx)]
     mx = mx[np.argsort(mx)]
 
-    limits_slice *= 10**i
+    print(limits_slice)
+    print(limits_slice.dtype)
+    limits_slice *= int(10**j)
 
     plt.scatter(mx, limits_slice[2], zorder=3, facecolors="none", edgecolors="blue")
     if my in nominal_my:
       plt.scatter(mx[np.isin(mx, nominal_mx)], limits_slice[2][np.isin(mx, nominal_mx)], zorder=4, facecolors="none", edgecolors="red", label=label1)
     plt.plot(mx, limits_slice[2], 'b--', zorder=3, label=label2)
-    plt.fill_between(mx, limits_slice[1], limits_slice[3], zorder=2, facecolor="green", label=label3)
-    plt.fill_between(mx, limits_slice[0], limits_slice[4], zorder=1, facecolor="yellow", label=label4)
+    if len(mx) > 1:
+      plt.fill_between(mx, limits_slice[1], limits_slice[3], zorder=2, facecolor="green", label=label3)
+      plt.fill_between(mx, limits_slice[0], limits_slice[4], zorder=1, facecolor="yellow", label=label4)
+    else:
+      plt.fill_between([mx[0]-10]+list(mx), list(limits_slice[1])*2, list(limits_slice[3])*2, zorder=2, facecolor="green", label=label3)
+      plt.fill_between([mx[0]-10]+list(mx), list(limits_slice[0])*2, list(limits_slice[4])*2, zorder=1, facecolor="yellow", label=label4)
     label1 = label2 = label3 = label4 = None
 
-    plt.text(mx[-1]+10, limits_slice[2][-1], r"$m_Y=%d$ GeV $(\times 10^%d)$"%(my, i), fontsize=12, verticalalignment="center")
+    plt.text(mx[-1]+10, limits_slice[2][-1], r"$m_Y=%d$ GeV $(\times 10^{%d})$"%(my, j), fontsize=12, verticalalignment="center")
 
   plt.xlabel(r"$m_X$")
   plt.ylabel(ylabel)  
   plt.legend(ncol=2)
   bottom, top = plt.ylim()
-  plt.ylim(limits.min(), limits.max()*10**(i+1))
+  plt.ylim(limits.min(), limits.max()*10**(j+1))
   left, right = plt.xlim()
   plt.xlim(left, 1175)
     
@@ -243,8 +263,8 @@ def plotLimits2D(masses, limits, ylabel, savename):
   plt.xlabel(r"$m_X$")
   plt.ylabel(r"$m_Y$")
 
-  plt.text(0.05, 0.9, r"$Y\rightarrow\tau\tau$", transform=plt.gca().transAxes, fontsize=32)
-  #plt.text(0.05, 0.9, r"$Y\rightarrow\gamma\gamma$", transform=plt.gca().transAxes, fontsize=32)
+  #plt.text(0.05, 0.9, r"$Y\rightarrow\tau\tau$", transform=plt.gca().transAxes, fontsize=32)
+  plt.text(0.05, 0.9, r"$Y\rightarrow\gamma\gamma$", transform=plt.gca().transAxes, fontsize=32)
 
   mplhep.cms.label(llabel="Work in Progress", data=True, lumi=common.tot_lumi, loc=0)
 
@@ -369,7 +389,9 @@ def tabulateLimitsAll(masses, limits, limits_no_sys, limits_no_res_bkg, path):
   df.to_csv(os.path.join(path, "limits.csv"), float_format="%.4f")
 
 masses, limits, limits_no_sys, limits_no_res_bkg, limits_no_dy_bkg = getLimits(sys.argv[1])
+print(limits)
 os.makedirs(os.path.join(sys.argv[2], "Limits_xs_br"), exist_ok=True)
+os.makedirs(os.path.join(sys.argv[2], "Limits_xs_br_nominal"), exist_ok=True)
 os.makedirs(os.path.join(sys.argv[2], "Limits_xs"), exist_ok=True)
 os.makedirs(os.path.join(sys.argv[2], "Limits_xs_br_no_sys"), exist_ok=True)
 os.makedirs(os.path.join(sys.argv[2], "Limits_xs_no_sys"), exist_ok=True)
@@ -419,14 +441,17 @@ if len(np.unique(masses[:,1])) == 1: #if 1D (graviton or radion)
 else:
   nominal_mx = [300,400,500,600,700,800,900,1000]
   nominal_my = [70,80,90,100,125]
-  #nominal_my = [70,80,90,100,125,150,200,250,300,400,500,600,700,800]
+  #nominal_my = [50, 70,80,90,100,125,150,200,250,300,400,500,600,700,800]
   #nominal_my = [125,150,200,250,300,400,500,600,700,800]
 
   #only grab the nominal points
-  # s = np.isin(masses[:,0], nominal_mx) & np.isin(masses[:,1], nominal_my)
-  # limits = limits[:, s]
-  # limits_no_sys = limits_no_sys[:, s]
-  # masses = masses[s]
+  s = np.isin(masses[:,0], nominal_mx) & np.isin(masses[:,1], nominal_my)
+  limits = limits[:, s]
+  limits_no_sys = limits_no_sys[:, s]
+  limits_no_res_bkg = limits_no_res_bkg[:, s]
+  masses = masses[s]
+  tabulateLimitsAll(masses, limits, limits_no_sys, limits_no_res_bkg, os.path.join(sys.argv[2], "Limits_xs_br"))
+
 
   ylabel = r"$\sigma(pp \rightarrow X) B(X \rightarrow YH \rightarrow \gamma\gamma\tau\tau)$ [fb]"
   plotLimitsStackMX(masses, limits,             ylabel, nominal_mx, nominal_my, os.path.join(sys.argv[2], "Limits_xs_br", "limits_stack_mx"))
@@ -439,7 +464,7 @@ else:
   plotLimits2D(masses, limits_no_sys, ylabel, os.path.join(sys.argv[2], "Limits_xs_br_no_sys", "limits_2d_no_sys"))
   plotLimits2D(masses, limits_no_res_bkg, ylabel, os.path.join(sys.argv[2], "Limits_xs_br_no_res_bkg", "limits_2d_no_res_bkg"))
 
-  for mx in np.unique(masses[:,0]):
+  for mx in nominal_mx:
     my = masses[masses[:,0]==mx,1]
     limits_slice = limits[:,masses[:,0]==mx]
     limits_no_sys_slice = limits_no_sys[:,masses[:,0]==mx]
@@ -469,7 +494,7 @@ else:
     plotResBkgComparison2(my, limits_slice, limits_no_res_bkg_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_res_bkg_comparison", "mx%d_2"%mx), xlabel=r"$m_Y$")
     plotDYBkgComparison2(my, limits_slice, limits_no_dy_bkg_slice, ylabel, nm, os.path.join(sys.argv[2], "Limits_dy_bkg_comparison", "mx%d_2"%mx), xlabel=r"$m_Y$")
 
-  for my in np.unique(masses[:,1]):
+  for my in nominal_my:
     mx = masses[masses[:,1]==my,0]
     limits_slice = limits[:,masses[:,1]==my]
     limits_no_sys_slice = limits_no_sys[:,masses[:,1]==my]

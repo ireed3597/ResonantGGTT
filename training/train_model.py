@@ -50,7 +50,7 @@ def getProcId(proc_dict, proc):
     return None
 
 def getGJetIds(proc_dict):
-  gjet_ids = [getProcId(proc_dict, proc) for proc in common.bkg_procs["GJets"]] + [getProcId(proc_dict, "TTJets")]
+  gjet_ids = [getProcId(proc_dict, proc) for proc in common.bkg_procs["GJets"]] + [getProcId(proc_dict, "TTJets")] + [getProcId(proc_dict, "DiPhoton_Low")]
   gjet_ids = [each for each in gjet_ids if each != None]
   return gjet_ids
 
@@ -89,6 +89,8 @@ def loadDataFrame(args, train_features):
 
   df["y"] = 0
   df.loc[df.process_id.isin(sig_ids), "y"] = 1
+
+  df.drop_duplicates(subset=["process_id", "year", "event", "Diphoton_mass"], inplace=True)
 
   if TRACK_MEMORY:  log_memory()
   return df, proc_dict
@@ -362,7 +364,8 @@ def evaluatePlotAndSave(args, proc_dict, model, train_features, train_df, test_d
   if hasattr(model["classifier"], "writer"):
     model["classifier"].writer.close()
 
-  if args.only_ROC: return None
+  if args.only_ROC: 
+    return None
   
   if args.extra_masses is not None:
     with open(args.extra_masses, "r") as f:
@@ -588,12 +591,32 @@ def doCV(parser, args):
 
     start(parser, common.parserToList(args_copy))
 
+def mergeBatchSplit(outdir, outputName):
+  parquet_dir = os.path.join(outdir, outputName.split(".parquet")[0])
+  parquet_files = os.listdir(parquet_dir)
+  parquet_files = sorted(list(filter(lambda x: ".parquet" in x, parquet_files)))
+
+  dfs = []  
+
+  for i, f in enumerate(parquet_files):
+    path = os.path.join(parquet_dir, f)
+    if i == 0:
+      dfs.append(pd.read_parquet(path))
+    else:
+      score_columns = list(filter(lambda x:"score" in x, common.getColumns(path)))
+      dfs.append(pd.read_parquet(path, columns=score_columns))
+
+  merged_df = pd.concat(dfs, axis=1)
+  merged_df.to_parquet(os.path.join(outdir, outputName))
+
 def start(parser, args=None):
   args = parser.parse_args(args)
 
-  # if you are loading a model, you probably want the cdf from the training dataset
-  # if args.loadModel: 
-  #   assert args.loadTransformBkg is not None
+  if args.batch_split or args.merge_batch_split:
+    assert args.loadModel is not None
+    assert args.hyperparams_grid is None
+    assert not args.do_param_tests
+    assert args.do_cv == 0
 
   if args.eval_sig_procs == None:
     args.eval_sig_procs = args.train_sig_procs
@@ -623,9 +646,36 @@ def start(parser, args=None):
   if args.do_cv > 0:
     doCV(parser, args)
     return True
-    
+  
   if args.batch:
-    common.submitToBatch([sys.argv[0]] + common.parserToList(args), extra_memory=args.batch_slots)
+    if (not args.batch_split) or (args.merge_batch_split):
+      common.submitToBatch([sys.argv[0]] + common.parserToList(args), extra_memory=args.batch_slots)
+      return True
+    else:
+      if args.extra_masses is not None:
+        with open(args.extra_masses, "r") as f:
+          extra_masses = json.load(f)
+        
+        example_sig_proc = args.eval_sig_procs[0]
+        for MX, MY in extra_masses:
+          args.eval_sig_procs.append(common.get_sig_proc(example_sig_proc, MX, MY))
+        args.extra_masses = None
+
+      args.outdir = os.path.join(args.outdir, args.outputName.split(".parquet")[0])
+      os.makedirs(args.outdir, exist_ok=True)
+      eval_sig_procs_copy = args.eval_sig_procs.copy()
+      outputName_copy = args.outputName
+      for i, proc in enumerate(sorted(eval_sig_procs_copy)):
+        if i != 0:
+          args.dropSystematicWeights = True
+
+        args.eval_sig_procs = [proc]
+        args.outputName = outputName_copy.split(".parquet")[0] + f"_{proc}.parquet"
+        common.submitToBatch([sys.argv[0]] + common.parserToList(args), extra_memory=args.batch_slots)
+      return True
+
+  if args.merge_batch_split:
+    mergeBatchSplit(args.outdir, args.outputName)
     return True
 
   if args.hyperparams != None:
@@ -682,6 +732,9 @@ if __name__=="__main__":
 
   parser.add_argument('--loadTransformCDFs', type=str, default=None)
   parser.add_argument('--outputTransformCDFs', type=str, default=None)
+
+  parser.add_argument('--batch-split', action="store_true")
+  parser.add_argument('--merge-batch-split', action="store_true")
 
   #import cProfile
   #cProfile.run('start(parser)', 'restats')

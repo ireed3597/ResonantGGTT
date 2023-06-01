@@ -7,6 +7,7 @@ import uproot
 import common
 import tabulate
 import sys
+import optimisation.tools as tools
 
 def assignSignalRegions(df, optim_results, score_name):
   df["SR"] = -1
@@ -19,13 +20,18 @@ def assignSignalRegions(df, optim_results, score_name):
 
 def writeOutputTree(mass, weight, process, cat_name, year, undo_lumi_scaling=False, scale_signal=False):
   df = pd.DataFrame({"dZ": np.zeros(len(mass)), "CMS_hgg_mass": mass, "weight": weight})
-  
+  #print(df)
+  #assert len(df) >= 4, len(df)
+
   if undo_lumi_scaling:
     df.loc[:,"weight"] /= common.lumi_table[year]
   if scale_signal:
     df.loc[:,"weight"] /= 1000
 
-  print(process, cat_name, year)
+  #s = ((df.CMS_hgg_mass>=100)&(df.CMS_hgg_mass<=115)) | ((df.CMS_hgg_mass>=135)&(df.CMS_hgg_mass<=180))
+  #s = (df.CMS_hgg_mass >= 65)
+  #s = (df.CMS_hgg_mass >= 100)
+  #print(sum(s), flush=True)
   #print("  Sumw full mgg range: %d"%df.weight.sum())
   #print("  Sumw 100 < mgg < 180: %d"%df[(df.CMS_hgg_mass>=100)&(df.CMS_hgg_mass<=180)].weight.sum())
   #print("  Sumw 65 < mgg < 150: %d"%df[(df.CMS_hgg_mass>=65)&(df.CMS_hgg_mass<=150)].weight.sum())
@@ -65,27 +71,39 @@ def getYieldTable(df, proc_dict, path):
     f.write(yield_table.to_latex(float_format="%.4f"))
   yield_table.to_csv(path+".csv", float_format="%.4f")
 
+def printDuplications(df):
+  for process_id in df.process_id.unique():
+    for year in df[df.process_id==process_id].year.unique():
+      uniques, counts = np.unique(df[(df.process_id==process_id)&(df.year==year)].event, return_counts=True)
+      duplicates = uniques[counts > 1]
+
+      print(year, process_id)
+      print(df[(df.process_id==process_id)&(df.year==year)&(df.event.isin(duplicates))].sort_values(by="event")[["Diphoton_mass", "event"]])
+
 def main(args):
   if args.batch:
     common.submitToBatch([sys.argv[0]] + common.parserToList(args), extra_memory=args.batch_slots)
     return True
-
-  columns = common.getColumns(args.parquet_input)
-  columns = list(filter(lambda x: x[:5] != "score", columns))
-
-  df = pd.read_parquet(args.parquet_input, columns=columns)
-
-  #df = df[(df.Diphoton_mass>85)&(df.Diphoton_mass<95)]
-  #df = df[(df.Diphoton_mass>91-1.08)&(df.Diphoton_mass<91+1.08)]
-  #df = df[~df.category.isin([7,8])]
 
   with open(args.optim_results) as f:
     optim_results = json.load(f)
   with open(args.summary_input, "r") as f:
     proc_dict = json.load(f)["sample_id_map"]
 
+  columns = common.getColumns(args.parquet_input)
+  columns = list(filter(lambda x: x[:5] != "score", columns))
+  df = pd.read_parquet(args.parquet_input, columns=columns)
+
   #only have data, may need to change if doing res bkg
-  #df = df[df.process_id == proc_dict["Data"]]
+  df = df[df.process_id == proc_dict["Data"]]
+
+  printDuplications(df)
+  df.drop_duplicates(inplace=True)
+  printDuplications(df)
+
+  sig_proc_example = optim_results[0]["sig_proc"]
+  pres = tools.get_pres(sig_proc_example)
+  df = df[(df.Diphoton_mass >= pres[0]) & (df.Diphoton_mass <= pres[1])]
   
   yield_tables = []
   yield_tables_path = os.path.join(args.outdir, "yieldTables")
@@ -111,13 +129,27 @@ def main(args):
 
       for i, year in enumerate(years):
         SRs = np.sort(tagged_df.SR.unique())
-        if args.dropLastCat: SRs = SRs[:-1]
+        if args.dropLastCat: 
+          SRs = SRs[:-1]
+
+        if (SRs != [i for i in range(len(SRs))]).all():
+          print(f"Missing categories for MX={MX}, MY={MY}")
+          print("Will drop this mass point")
+          print(np.unique(data.SR, return_counts=True))
+          continue
+        
         for SR in SRs:
           cat_name = "%scat%d"%(proc_name, SR)
           if args.controlRegions:
             cat_name += "cr"
           if args.combineYears and (i==0):
-            writeOutputTree(data[(data.SR==SR)].Diphoton_mass, data[(data.SR==SR)].weight, "Data", cat_name, "combined")
+            mgg = data[(data.SR==SR)].Diphoton_mass
+            w = data[(data.SR==SR)].weight
+            sr = tools.get_sr(entry["sig_proc"])
+            print("Data", cat_name, year)
+            print(sum((mgg <= sr[0]) | (mgg >= sr[1])), flush=True)
+
+            writeOutputTree(mgg, w, "Data", cat_name, "combined")
           elif not args.combineYears:
             writeOutputTree(data[(data.SR==SR)&(data.year==year)].Diphoton_mass, data[(data.SR==SR)&(data.year==year)].weight, "Data", cat_name, year)
 

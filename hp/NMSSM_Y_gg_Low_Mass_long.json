@@ -3,7 +3,7 @@
   "max_epochs": 500,
   "batch_size": 128,
   "lr": 0.01,
-  "min_epoch": 80,
+  "min_epoch": 100,
   "grace_epochs": 15,
   "tol": 0.001,
   "gamma": 0.9,
