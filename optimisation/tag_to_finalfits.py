@@ -93,25 +93,29 @@ def main(args):
   columns = common.getColumns(args.parquet_input)
   columns = list(filter(lambda x: x[:5] != "score", columns))
   df = pd.read_parquet(args.parquet_input, columns=columns)
-
+  print("Number of entires: {}".format(len(df)))
   #only have data, may need to change if doing res bkg
   df = df[df.process_id == proc_dict["Data"]]
-
+  print("Number of datapoints: {}".format(len(df)))
   printDuplications(df)
   df.drop_duplicates(inplace=True)
   printDuplications(df)
-
+  print("Number of datapoints after dupe trim: {}".format(len(df)))
   sig_proc_example = optim_results[0]["sig_proc"]
-  pres = tools.get_pres(sig_proc_example)
+  #pres = tools.get_pres(sig_proc_example) TODO Fix correctly
+  pres = (55,1000)
   df = df[(df.Diphoton_mass >= pres[0]) & (df.Diphoton_mass <= pres[1])]
-  
+  print("Low mass: {}".format(pres[0]))
+  print("High mass: {}".format(pres[1]))
+  print("Number of datapoints after presel trim: {}".format(len(df)))
   yield_tables = []
   yield_tables_path = os.path.join(args.outdir, "yieldTables")
   os.makedirs(yield_tables_path, exist_ok=True)
 
   for entry in optim_results:
     MX, MY = common.get_MX_MY(entry["sig_proc"])
-    #if MY != 90: continue
+    if MY != 90: continue
+    if MX != 280: continue
     #print(MX)
 
     print("Tagging")
@@ -147,7 +151,8 @@ def main(args):
             w = data[(data.SR==SR)].weight
             sr = tools.get_sr(entry["sig_proc"])
             print("Data", cat_name, year)
-            print(sum((mgg <= sr[0]) | (mgg >= sr[1])), flush=True)
+            print(len(mgg))
+            #print(sum((mgg <= sr[0]) | (mgg >= sr[1])), flush=True)
 
             writeOutputTree(mgg, w, "Data", cat_name, "combined")
           elif not args.combineYears:

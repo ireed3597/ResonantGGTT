@@ -5,7 +5,7 @@ certifi==2021.10.8
 charset-normalizer==2.0.11
 cycler==0.11.0
 dataclasses==0.8
-fts3==3.8.3
+fts3==3.12.0
 gfal2_util==1.5.3
 google-auth==2.13.0
 google-auth-oauthlib==0.4.6

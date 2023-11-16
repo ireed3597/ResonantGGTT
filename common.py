@@ -1,11 +1,11 @@
 import os
 
 # get LOW_MASS_MODE from environment variable if exists, otherwise default to hard-coded value
-LOW_MASS_MODE = os.getenv("LOW_MASS_MODE")
-if LOW_MASS_MODE is None:
-  LOW_MASS_MODE = False
-else:
-  LOW_MASS_MODE = (LOW_MASS_MODE == "True")
+#LOW_MASS_MODE = os.getenv("LOW_MASS_MODE")
+#if LOW_MASS_MODE is None:
+#  LOW_MASS_MODE = False
+#else:
+LOW_MASS_MODE = True
 print('\033[93m')
 if LOW_MASS_MODE: print("Running in LOW MASS MODE")
 else:             print("Running in HIGH MASS MODE")
@@ -146,8 +146,8 @@ def expandSigProcs(sig_procs_to_expand):
 def get_MX_MY(sig_proc):
   if "NMSSM" in sig_proc:
     split_name = sig_proc.split("_")
-    MX = float(split_name[7])
-    MY = float(split_name[9])
+    MX = float(split_name[3])
+    MY = float(split_name[5])
   elif "XToHHggTauTau" in sig_proc:
     MX = float(sig_proc.split("_")[1][1:])
     MY = 125.0
