@@ -146,8 +146,8 @@ def expandSigProcs(sig_procs_to_expand):
 def get_MX_MY(sig_proc):
   if "NMSSM" in sig_proc:
     split_name = sig_proc.split("_")
-    MX = float(split_name[3])
-    MY = float(split_name[5])
+    MX = float(split_name[-3])
+    MY = float(split_name[-1])
   elif "XToHHggTauTau" in sig_proc:
     MX = float(sig_proc.split("_")[1][1:])
     MY = 125.0
